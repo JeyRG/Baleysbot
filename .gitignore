@@ -1,0 +1,20 @@
+# Root Node Modules
+node_modules/
+
+# Subfolder specific
+base-js-baileys-memory/node_modules/
+base-js-baileys-memory/.env
+base-js-baileys-memory/user_data.json
+base-js-baileys-memory/*.log
+base-js-baileys-memory/*qr.png
+
+# Sessions
+*_sessions
+*tokens
+.wwebjs*
+.baileys*
+auth_info*
+
+# Build artifacts
+dist/
+*.json.bak

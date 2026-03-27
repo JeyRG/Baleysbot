@@ -1,0 +1,14 @@
+dist/*
+node_modules
+.env
+user_data.json
+*.json.bak
+*.log
+*qr.png
+
+# WhatsApp Web / Sessions
+*_sessions
+*tokens
+.wwebjs*
+.baileys*
+auth_info*
