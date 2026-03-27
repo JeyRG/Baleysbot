@@ -132,24 +132,29 @@ const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 /**
  * LÓGICA DE ENVÍO AUTOMATIZADO (Post-Verificación)
  */
-async function procesarEnvioMensaje(numero, nombre, facultad, programa, provider) {
+async function procesarEnvioMensaje(target, nombre, facultad, programa, provider) {
     try {
-        console.log(`[Flow] Iniciando secuencia automatizada para ${nombre} (${numero})`);
-        const groupLink = "https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl?mode=gi_t";
+        console.log(`[Flow] Preparando envío para: ${nombre} - Programa: "${programa}"`);
+        const numero = target;
+
+        // 1. Determinar el link del grupo (Misma lógica simple)
+        let groupLink = 'https://chat.whatsapp.com/LhXWlYhY9oP4j1Y0p1Y0p1'; // Default
+        const p = programa.toLowerCase();
+        if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/FAMzS7tQJ9mD8oJ7tE8u8p';
+        else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/J8tE8u8pFAMzS7tQJ9mD8o';
+
+        // 2. Información base
+        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-1234567'; let cci = '009-100-0000001234567-89'; let costo = 'S/ 500';
+        if (p.includes('doctorado')) {
+            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-9876543'; cci = '009-100-0000009876543-21'; costo = 'S/ 1000';
+        } else if (p.includes('especialidad')) {
+            precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
+        }
 
         // 1. Bienvenida
         const saludo = `🎓 ¡Hola ${nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *${programa}*.`;
         await provider.sendMessage(numero, saludo, {});
         await delay(3000);
-
-        // 2. Información de Costos y Fechas
-        let precio = 'S/ 200', duracion = '3 semestres', cuenta = '000-3747336', cci = '009-100-000003747336-90', costo = 'S/ 2100';
-        const p = programa.toLowerCase();
-        if (p.includes('doctorado')) {
-            precio = 'S/ 250'; duracion = '6 semestres'; costo = 'S/ 2100';
-        } else if (p.includes('especialidad')) {
-            precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
-        }
 
         const infoText = `💥 *Detalles del Programa:*
 📌 Inscripción: ${precio}
@@ -159,7 +164,7 @@ async function procesarEnvioMensaje(numero, nombre, facultad, programa, provider
 
 📅 *Fechas Clave:*
 🖋 Inscripciones: Hasta el 10 de Agosto del 2026
-🎒 Inicio Clases: Setiembre del 2026
+🎒 Inicio Clases: 1 Setiembre del 2026
 
 🔗 *Únete al grupo de WhatsApp oficial:*
 ${groupLink}`;
@@ -168,13 +173,21 @@ ${groupLink}`;
         await delay(3000);
 
         // 3. Enviar Brochure (Si existe)
+        console.log(`[Flow] Buscando brochure para: "${programa}"...`);
         const targetProgram = findProgramFuzzy(programa);
+
         if (targetProgram && targetProgram.brochure) {
-            console.log(`[Flow] Brochure encontrado para ${programa}: ${targetProgram.nombre}`);
+            console.log(`[Flow] ✅ Brochure encontrado: ${targetProgram.nombre} -> ${targetProgram.brochure}`);
             await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
-            await provider.sendMessage(numero, { media: targetProgram.brochure }, { fileName: `${targetProgram.nombre}.pdf`.replace(/\s+/g, '_') });
+            await delay(1000);
+
+            // Usar una forma más robusta de enviar media que funcione para bot y provider
+            await provider.sendMessage(numero, targetProgram.brochure, {
+                media: targetProgram.brochure,
+                fileName: `${targetProgram.nombre}.pdf`.replace(/\s+/g, '_')
+            });
         } else {
-            console.log(`[Flow] ⚠️ No se encontró brochure para: "${programa}". Verifica el catálogo.`);
+            console.log(`[Flow] ⚠️ No se encontró coincidencia para: "${programa}".`);
             await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, por favor escríbeme el nombre exacto o solicita un asesor.`, {});
         }
 

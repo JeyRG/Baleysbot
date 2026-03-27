@@ -5,7 +5,10 @@ const PROGRAMAS_PATH = path.join(process.cwd(), 'programas.json')
 
 const normalizeText = (text) => {
     if (!text) return ""
-    return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    // Quitar tildes, pasar a minúsculas y quitar palabras vacías comunes
+    let norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    norm = norm.replace(/\b(de|la|en|el|y|con|mencion)\b/g, "").replace(/\s+/g, " ").trim()
+    return norm
 }
 
 /**
@@ -137,13 +140,13 @@ export const findProgramFuzzy = (query) => {
     if (matchSimple) return matchSimple
 
     // 2. Coincidencia por palabras clave compartidas
-    const queryWords = queryNorm.split(/\s+/).filter(w => w.length > 3)
+    const queryWords = queryNorm.split(/\s+/).filter(w => w.length > 2) // Palabras de 3+ letras
     if (queryWords.length > 0) {
         const matchesByKeyword = allPrograms.map(p => {
             const nameNorm = normalizeText(p.nombre)
             const overlap = queryWords.filter(w => nameNorm.includes(w)).length
             return { program: p, overlap }
-        }).filter(m => m.overlap >= 2) // Al menos 2 palabras clave
+        }).filter(m => m.overlap >= 1) // Al menos 1 palabra clave significativa
 
         if (matchesByKeyword.length > 0) {
             // Devolver el que tenga más coincidencia
