@@ -36,31 +36,34 @@ async function processFile(filePath) {
 
     try {
         const rawContent = fs.readFileSync(absolutePath, 'utf8');
-
+        
         // 1. Dividir por cabeceras (ej: */REQUISITOS)
-        // Usamos una expresión regular para detectar los separadores */
-        const chunks = rawContent.split(/\*\//).filter(c => c.trim().length > 10);
+        // El primer bloque es especial si no tiene */ al inicio
+        const chunks = rawContent.split(/\*\//).map(c => c.trim()).filter(c => c.length > 5);
 
         console.log(`\n📦 Se detectaron ${chunks.length} bloques de conocimiento.`);
         console.log('⏳ Iniciando carga masiva a Supabase...\n');
 
         for (let i = 0; i < chunks.length; i++) {
-            const text = chunks[i].trim();
-            const firstLine = text.split('\n')[0].substring(0, 30);
-
-            process.stdout.write(`   [${i + 1}/${chunks.length}] Procesando: "${firstLine}..." `);
-
+            const text = chunks[i];
+            const firstLine = text.split('\n')[0].substring(0, 50);
+            
+            process.stdout.write(`   [${i + 1}/${chunks.length}] Insertando: "${firstLine}..." `);
+            
             try {
                 const embedding = await getEmbedding(text);
-                const { error } = await supabase.from('knowledge_base').insert({
+                const { data, error } = await supabase.from('knowledge_base').insert({
                     content: text,
                     embedding: embedding
-                });
+                }).select(); // Usar select() para confirmar inserción
 
-                if (error) throw error;
-                process.stdout.write('✅ OK\n');
+                if (error) {
+                    process.stdout.write(`❌ ERROR DB: ${JSON.stringify(error)}\n`);
+                } else {
+                    process.stdout.write(`✅ OK (ID: ${data?.[0]?.id || 'N/A'})\n`);
+                }
             } catch (err) {
-                process.stdout.write(`❌ Error: ${err.message}\n`);
+                process.stdout.write(`❌ ERROR VECTOR: ${err.message}\n`);
             }
         }
 
