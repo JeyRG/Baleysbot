@@ -108,16 +108,16 @@ const solicitudAsesorFlow = addKeyword(['SOLICITUD_ASESOR_MANUAL', 'SOLICITUD_AS
     .addAction(async (ctx, { provider, flowDynamic }) => {
         const user = loadUserData(ctx.from);
         const adminMsg = `🚨 *NUEVA SOLICITUD DE ASESOR* 🚨\n\n` +
-                        `👤 *Nombre:* ${user.nombre || 'No registrado'}\n` +
-                        `📞 *Teléfono:* ${ctx.from}\n` +
-                        `💬 *Motivo:* El usuario solicitó un asesor humano.\n` +
-                        `📱 *WhatsApp:* wa.me/${ctx.from}`;
+            `👤 *Nombre:* ${user.nombre || 'No registrado'}\n` +
+            `📞 *Teléfono:* ${ctx.from}\n` +
+            `💬 *Motivo:* El usuario solicitó un asesor humano.\n` +
+            `📱 *WhatsApp:* wa.me/${ctx.from}`;
 
         const targetAdmin = '51900969591@s.whatsapp.net';
         console.log(`[Flow] Notificación automática a: ${targetAdmin}`);
-        
+
         try {
-            await provider.sendMessage(targetAdmin, adminMsg, {}); 
+            await provider.sendMessage(targetAdmin, adminMsg, {});
             await flowDynamic('✅ ¡Excelente! He avisado a un asesor humano. Se comunicarán contigo pronto por este mismo chat. 🕒');
         } catch (error) {
             console.error(`[Flow] Error al notificar admin:`, error);
@@ -134,7 +134,7 @@ async function procesarEnvioMensaje(numero, nombre, facultad, programa, provider
     try {
         console.log(`[Flow] Iniciando secuencia automatizada para ${nombre} (${numero})`);
         const groupLink = "https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl?mode=gi_t";
-        
+
         // 1. Bienvenida
         const saludo = `🎓 ¡Hola ${nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *${programa}*.`;
         await provider.sendMessage(numero, saludo, {});
@@ -143,9 +143,9 @@ async function procesarEnvioMensaje(numero, nombre, facultad, programa, provider
         // 2. Información de Costos y Fechas
         let precio = 'S/ 200', duracion = '3 semestres', cuenta = '000-3747336', cci = '009-100-000003747336-90', costo = 'S/ 2100';
         const p = programa.toLowerCase();
-        if (p.includes('doctorado')) { 
+        if (p.includes('doctorado')) {
             precio = 'S/ 250'; duracion = '6 semestres'; costo = 'S/ 2100';
-        } else if (p.includes('especialidad')) { 
+        } else if (p.includes('especialidad')) {
             precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
         }
 
@@ -156,8 +156,8 @@ async function procesarEnvioMensaje(numero, nombre, facultad, programa, provider
 💵 Costo Semestre: ${costo}
 
 📅 *Fechas Clave:*
-🖋 Inscripciones: Hasta el 21 de Marzo 2026
-🎒 Inicio Clases: Abril 2026
+🖋 Inscripciones: Hasta el 10 de Agosto del 2026
+🎒 Inicio Clases: Setiembre del 2026
 
 🔗 *Únete al grupo de WhatsApp oficial:*
 ${groupLink}`;
@@ -215,7 +215,7 @@ const flowVerificacion = addKeyword(['verificar', 'inscripción', 'inscripcion',
                     await flowDynamic(`✅ ¡Excelente ${data.nombre}! Encontramos tu registro para *${data.programa}*.\nEn breve te enviaremos la información detallada... 🚀`);
                     await state.update({ infoEnviada: true });
                     saveUser(ctx.from, { infoEnviada: true });
-                    
+
                     // Disparar envío pesado
                     await procesarEnvioMensaje(ctx.from, data.nombre, data.facultad, data.programa, provider);
                     return endFlow();
@@ -238,10 +238,10 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         let user = loadUserData(userId);
         const bodyLower = body.toLowerCase();
         const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
-        
+
         const s = await state.getMyState() || {};
         const isAffirmative = ['si', 'yes', 'claro', 'por supuesto', 'afirmativo', 'simón', 'dale'].includes(bodyLower);
-        
+
         // 1. Manejo de Agradecimientos
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
         if (thanks.some(t => bodyLower.includes(t))) {
@@ -288,7 +288,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 user.nombre = body;
                 user.esperandoNombre = false;
                 saveUser(userId, user);
-                
+
                 await supabase.from('students').upsert({ wa_id: userId, full_name: body, phone_number: ctx.from }).select()
 
                 return await flowDynamic(`¡Excelente, *${user.nombre}*! 🎓 Soy el Asesor Académico de Posgrado UNAC. ¿En qué programa estás interesado? Tenemos Maestrías, Doctorados y Especialidades. ✨`);
@@ -322,7 +322,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const facultyMatch = findFaculty(body);
         const categoryMatch = findCategory(body);
         let dynamicContext = "";
-        
+
         if (programMatch) {
             dynamicContext = `Programa: ${programMatch.nombre}. Info: ${programMatch.descripcion}. Pregunta si quiere el PDF.`;
             console.log(`[RAG] Programa detectado: ${programMatch.nombre}`);
@@ -348,7 +348,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         // 6. Consulta Grok
         const response = await getGrokCompletion(user.nombre, body, dynamicContext);
         console.log(`[Grok] Respuesta cruda: "${response}"`);
-        
+
         if (response) {
             // Guardar en Caché
             if (embedding) await saveToCache(body, response, embedding);
@@ -360,7 +360,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             // 7. Detectar intención de programa para futura confirmación
             const programInResponse = findProgram(response);
             const targetProgram = programInResponse || programMatch;
-            
+
             if (targetProgram) {
                 await state.update({ pendingProgram: targetProgram.nombre });
                 console.log(`[Flow] Programa pendiente de confirmación: ${targetProgram.nombre}`);
@@ -407,18 +407,18 @@ const main = async () => {
         console.log(`[API] Lead recibido: ${nombre} (${dni}). Iniciando espera de 5 min.`);
 
         // 1. Guardar o actualizar registro en Supabase
-        await supabase.from('students').upsert({ 
-            wa_id: targetNumber, 
-            full_name: nombre, 
-            document_id: dni 
+        await supabase.from('students').upsert({
+            wa_id: targetNumber,
+            full_name: nombre,
+            document_id: dni
         });
 
         // 2. Configurar temporizador de 5 minutos
         if (pendingTimers.has(dni)) clearTimeout(pendingTimers.get(dni));
-        
+
         const timer = setTimeout(async () => {
             console.log(`[API] Tiempo cumplido para ${dni}. Verificando envío...`);
-            
+
             // Cargar datos actuales del usuario para ver si ya se le envió
             const user = loadUserData(targetNumber);
             if (!user.infoEnviada) {
