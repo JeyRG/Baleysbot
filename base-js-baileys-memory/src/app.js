@@ -157,6 +157,9 @@ const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 async function procesarEnvioMensaje(target, nombre, facultad, programa, provider) {
     try {
         console.log(`[Flow] Preparando envío para: ${nombre} - Programa: "${programa}"`);
+        if (!provider || typeof provider.sendMessage !== 'function') {
+            console.error('[Flow] ❌ El objeto provider/bot no es válido o no tiene sendMessage');
+        }
         const numero = target;
 
         // 1. Determinar el link del grupo (Misma lógica simple)
@@ -473,14 +476,21 @@ const main = async () => {
         const currentCounter = getLeadsCounter();
         const user = loadUserData(targetNumber);
 
-        if (currentCounter.count < 20 && !user.infoEnviada) {
+        // Para pruebas, si es uno de los primeros 20, forzamos el envío aunque infoEnviada sea true
+        if (currentCounter.count < 20) {
             const newCount = incrementLeadsCounter();
             console.log(`[API] Lead #${newCount} del día. Envío INMEDIATO (Vía Rápida) para ${targetNumber}`);
             
-            // Envío asíncrono pero sin esperar 5 minutos
-            procesarEnvioMensaje(targetNumber, nombre, facultad, programa, bot);
-            saveUser(targetNumber, { infoEnviada: true });
-            return res.end('Lead procesado vía rápida (Inmediato).');
+            try {
+                // Usamos la valla de seguridad de infoEnviada solo para el contador real, 
+                // pero aquí ejecutamos para asegurar que el usuario vea el resultado
+                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, bot);
+                saveUser(targetNumber, { infoEnviada: true });
+                return res.end('Lead procesado vía rápida (Inmediato).');
+            } catch (error) {
+                console.error(`[API] Error en envío inmediato:`, error);
+                // Si falla el inmediato, el fallback de 5 min se encargará (mas abajo)
+            }
         }
 
         // 3. Fallback: Espera de 5 minutos si ya pasó los 20 o ya se le envió algo
