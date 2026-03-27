@@ -36,7 +36,7 @@ async function processFile(filePath) {
 
     try {
         const rawContent = fs.readFileSync(absolutePath, 'utf8');
-        
+
         // 1. Dividir por cabeceras (ej: */REQUISITOS)
         // El primer bloque es especial si no tiene */ al inicio
         const chunks = rawContent.split(/\*\//).map(c => c.trim()).filter(c => c.length > 5);
@@ -47,9 +47,9 @@ async function processFile(filePath) {
         for (let i = 0; i < chunks.length; i++) {
             const text = chunks[i];
             const firstLine = text.split('\n')[0].substring(0, 50);
-            
+
             process.stdout.write(`   [${i + 1}/${chunks.length}] Insertando: "${firstLine}..." `);
-            
+
             try {
                 const embedding = await getEmbedding(text);
                 const { data, error } = await supabase.from('knowledge_base').insert({

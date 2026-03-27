@@ -11,7 +11,7 @@ import { supabase } from './supabaseClient.js'
  * @param {number} count - Cantidad de fragmentos a recuperar.
  * @returns {Promise<string>} - Texto con el contexto recuperado.
  */
-export async function getRAGContext(embedding, threshold = 0.75, count = 3) {
+export async function getRAGContext(embedding, threshold = 0.3, count = 3) {
     try {
         const { data, error } = await supabase.rpc('match_documents', {
             query_embedding: embedding,

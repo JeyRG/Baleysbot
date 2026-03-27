@@ -1,0 +1,10 @@
+USUARIO: cuanto es el costo de las maestrías
+
+🤖 BOT:
+El costo total de la Maestría es de 6300 soles. Este costo se desglosa de la siguiente manera:
+
+* Inscripción: 200 soles
+* Matrícula: 100 soles
+* 4 mensualidades de 500 soles por ciclo, durante 3 ciclos.
+
+Es importante mencionar que estos costos son solo para la Maestría en sí y que para obtener más información sobre costos adicionales, como para egresar o adquirir el título, puedes visitar la página web oficial del Posgrado de la UNAC: https://posgrado.unac.edu.pe/admision/requisitos_costos.html

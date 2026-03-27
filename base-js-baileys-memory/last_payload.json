@@ -1,0 +1,9 @@
+{
+  "model": "llama-3.3-70b-versatile",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Eres el Asesor de Posgrado UNAC. Usa el contexto para responder.\n\nCONTEXTO:\nInformación adicional encontrada:\n- duracion\nMaestría 3 ciclos\nDoctorado 6 ciclos\nSegunda especialidad 2 ciclos\n- Becas \nNO TENEMOS BECAS habilitadas por el momento.\n- COSTOS\nMaestría: inscripcion de 200 soles, matricula es 100 soles, 4 mensualidades de 500 soles por ciclo, costo total de la maestria es de 6300 soles\nDoctorado: inscripcion de 250 soles, matricula es 100 soles, 4 mensualidades de 500 soles por ciclo, costo total del doctorado es de 12600 soles\nEspecialidad: inscripcion de 120 soles, matricula es 200 soles, 4 mensualidades de 300 soles por ciclo, costo total de la especialidad es de 2400 soles\nPara mayor información sobre costos aidiconales, ya seaa para egresar o adquiiri el titulo visitar la pagina : https://posgrado.unac.edu.pe/admision/requisitos_costos.html\n\nPREGUNTA: cuanto es el costo de las maestrías"
+    }
+  ]
+}
