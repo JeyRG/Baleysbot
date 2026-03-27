@@ -226,12 +226,12 @@ ${groupLink}`;
             await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
             await delay(1500);
             
-            // Envío robusto como documento PDF con el nombre solicitado
-            await provider.sendMessage(numero, {
-                document: { url: targetProgram.brochure },
-                fileName: `brochure-${targetProgram.nombre}.pdf`.replace(/\s+/g, '_'),
-                mimetype: 'application/pdf'
-            }, {});
+            // Envío robusto compatible con BuilderBot
+            // Envío compatible con BuilderBot (Usamos texto no vacío para evitar error de match)
+            await provider.sendMessage(numero, "Brochure Oficial 📄", {
+                media: targetProgram.brochure,
+                fileName: `brochure-${targetProgram.nombre}.pdf`.replace(/\s+/g, '_')
+            });
         } else {
             console.log(`[Flow] ⚠️ No se encontró coincidencia para: "${programa}".`);
             await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, por favor escríbeme el nombre exacto o solicita un asesor.`, {});
@@ -484,7 +484,7 @@ const main = async () => {
             try {
                 // Usamos la valla de seguridad de infoEnviada solo para el contador real, 
                 // pero aquí ejecutamos para asegurar que el usuario vea el resultado
-                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, bot);
+                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, adapterProvider);
                 saveUser(targetNumber, { infoEnviada: true });
                 return res.end('Lead procesado vía rápida (Inmediato).');
             } catch (error) {
@@ -504,7 +504,7 @@ const main = async () => {
             const user = loadUserData(targetNumber);
             if (!user.infoEnviada) {
                 console.log(`[API] Disparando envío proactivo para ${targetNumber}`);
-                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, bot);
+                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, adapterProvider);
                 saveUser(targetNumber, { infoEnviada: true });
             }
             pendingTimers.delete(dni);
