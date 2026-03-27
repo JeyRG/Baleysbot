@@ -17,7 +17,7 @@ process.on('uncaughtException', (err) => console.error('Uncaught Exception:', er
 process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));
 
 
-const PORT = process.env.PORT ?? 4000
+const PORT = process.env.PORT ?? 3000
 const USER_DATA_PATH = path.join(process.cwd(), 'user_data.json')
 
 // Gestión de persistencia local
