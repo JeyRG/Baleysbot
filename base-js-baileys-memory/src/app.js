@@ -40,6 +40,28 @@ const saveUser = (id, data) => {
 const loadUserData = (id) => loadUsers()[id] || {};
 
 /**
+ * Gestión persistente del contador de leads diarios
+ */
+const COUNTER_PATH = path.join(process.cwd(), 'leads_counter.json');
+
+const getLeadsCounter = () => {
+    try {
+        if (!fs.existsSync(COUNTER_PATH)) return { date: new Date().toISOString().split('T')[0], count: 0 };
+        const data = JSON.parse(fs.readFileSync(COUNTER_PATH, 'utf8'));
+        const today = new Date().toISOString().split('T')[0];
+        if (data.date !== today) return { date: today, count: 0 };
+        return data;
+    } catch (e) { return { date: new Date().toISOString().split('T')[0], count: 0 }; }
+};
+
+const incrementLeadsCounter = () => {
+    const data = getLeadsCounter();
+    data.count++;
+    fs.writeFileSync(COUNTER_PATH, JSON.stringify(data), 'utf8');
+    return data.count;
+};
+
+/**
  * Lógica de Caché Semántico
  */
 const checkSemanticCache = async (embedding) => {
@@ -145,10 +167,14 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
 
         // 2. Información base
         let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-1234567'; let cci = '009-100-0000001234567-89'; let costo = 'S/ 500';
+        let reqDoc = 'Copia del Grado Académico de Bachiller.';
+        
         if (p.includes('doctorado')) {
             precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-9876543'; cci = '009-100-0000009876543-21'; costo = 'S/ 1000';
+            reqDoc = 'Copia del Grado Académico de Maestro o constancia de egresado.';
         } else if (p.includes('especialidad')) {
             precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
+            reqDoc = 'Copia del Título Profesional universitario.';
         }
 
         // 1. Bienvenida
@@ -166,10 +192,26 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
 🖋 Inscripciones: Hasta el 10 de Agosto del 2026
 🎒 Inicio Clases: 1 Setiembre del 2026
 
+📍 *Modalidad:*
+Semipresencial (80% virtual / 20% presencial).
+Asistencia 1 vez al mes (Clase híbrida).
+🎓 El grado sale con modalidad *PRESENCIAL*.
+
 🔗 *Únete al grupo de WhatsApp oficial:*
 ${groupLink}`;
 
         await provider.sendMessage(numero, infoText, {});
+        await delay(2000);
+
+        const requirementsText = `📝 *REQUISITOS DE INSCRIPCIÓN:*
+1️⃣ Copia legible del DNI o Pasaporte.
+2️⃣ Foto actual a color (fondo blanco).
+3️⃣ Hoja de Vida, Ficha de Inscripción y DJ firmados.
+4️⃣ ${reqDoc}
+
+*Nota:* Los grados del extranjero deben estar en SUNEDU.`;
+
+        await provider.sendMessage(numero, requirementsText, {});
         await delay(3000);
 
         // 3. Enviar Brochure (Si existe)
@@ -179,13 +221,14 @@ ${groupLink}`;
         if (targetProgram && targetProgram.brochure) {
             console.log(`[Flow] ✅ Brochure encontrado: ${targetProgram.nombre} -> ${targetProgram.brochure}`);
             await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
-            await delay(1000);
-
-            // Usar una forma más robusta de enviar media que funcione para bot y provider
-            await provider.sendMessage(numero, targetProgram.brochure, {
-                media: targetProgram.brochure,
-                fileName: `${targetProgram.nombre}.pdf`.replace(/\s+/g, '_')
-            });
+            await delay(1500);
+            
+            // Envío robusto como documento PDF con el nombre solicitado
+            await provider.sendMessage(numero, {
+                document: { url: targetProgram.brochure },
+                fileName: `brochure-${targetProgram.nombre}.pdf`.replace(/\s+/g, '_'),
+                mimetype: 'application/pdf'
+            }, {});
         } else {
             console.log(`[Flow] ⚠️ No se encontró coincidencia para: "${programa}".`);
             await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, por favor escríbeme el nombre exacto o solicita un asesor.`, {});
@@ -417,7 +460,7 @@ const main = async () => {
             return res.writeHead(400).end(JSON.stringify({ error: 'Faltan wa_id/telefono o dni' }));
         }
 
-        console.log(`[API] Lead recibido: ${nombre} (${dni}). Iniciando espera de 5 min.`);
+        console.log(`[API] Lead recibido: ${nombre} (${dni}).`);
 
         // 1. Guardar o actualizar registro en Supabase
         await supabase.from('students').upsert({
@@ -426,7 +469,22 @@ const main = async () => {
             document_id: dni
         });
 
-        // 2. Configurar temporizador de 5 minutos
+        // 2. Lógica de "Vía Rápida" (Top 20 del día)
+        const currentCounter = getLeadsCounter();
+        const user = loadUserData(targetNumber);
+
+        if (currentCounter.count < 20 && !user.infoEnviada) {
+            const newCount = incrementLeadsCounter();
+            console.log(`[API] Lead #${newCount} del día. Envío INMEDIATO (Vía Rápida) para ${targetNumber}`);
+            
+            // Envío asíncrono pero sin esperar 5 minutos
+            procesarEnvioMensaje(targetNumber, nombre, facultad, programa, bot);
+            saveUser(targetNumber, { infoEnviada: true });
+            return res.end('Lead procesado vía rápida (Inmediato).');
+        }
+
+        // 3. Fallback: Espera de 5 minutos si ya pasó los 20 o ya se le envió algo
+        console.log(`[API] Iniciando espera de 5 min para ${dni}.`);
         if (pendingTimers.has(dni)) clearTimeout(pendingTimers.get(dni));
 
         const timer = setTimeout(async () => {
