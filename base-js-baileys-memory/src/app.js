@@ -234,13 +234,16 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const bodyLower = body.toLowerCase();
         const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
         
+        const s = await state.getMyState() || {};
+        const isAffirmative = ['si', 'yes', 'claro', 'por supuesto', 'afirmativo', 'simón', 'dale'].includes(bodyLower);
+        
         // 1. Manejo de Agradecimientos
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
         if (thanks.some(t => bodyLower.includes(t))) {
             return await flowDynamic(`¡De nada, *${user.nombre || 'estimado'}*! 😊 Fue un gusto ayudarte. Si tienes más dudas en el futuro, aquí estaré. ¡Que tengas un excelente día! 🎓✨`);
         }
 
-        // 2. Confirmación de Brochure (REACCION A "SI")
+        // 2. Confirmación de Brochure o Asesor (REACCION A "SI")
         if (isAffirmative && body.split(' ').length <= 4) {
             // Caso A: Confirmación de Brochure
             if (s.pendingProgram) {
