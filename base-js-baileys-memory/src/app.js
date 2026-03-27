@@ -10,7 +10,8 @@ import { getGrokCompletion as originalGetGrokCompletion } from './grokClient.js'
 // Servicios
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
-import { findProgram, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly } from './services/catalogService.js'
+import { findProgram, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy } from './services/catalogService.js'
+import { getRAGContext } from './services/knowledgeService.js'
 
 // Handlers globales
 process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
@@ -165,10 +166,14 @@ ${groupLink}`;
         await delay(3000);
 
         // 3. Enviar Brochure (Si existe)
-        const targetProgram = findProgram(programa);
+        const targetProgram = findProgramFuzzy(programa);
         if (targetProgram && targetProgram.brochure) {
+            console.log(`[Flow] Brochure encontrado para ${programa}: ${targetProgram.nombre}`);
             await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
             await provider.sendMessage(numero, { media: targetProgram.brochure }, { fileName: `${targetProgram.nombre}.pdf`.replace(/\s+/g, '_') });
+        } else {
+            console.log(`[Flow] ⚠️ No se encontró brochure para: "${programa}". Verifica el catálogo.`);
+            await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, por favor escríbeme el nombre exacto o solicita un asesor.`, {});
         }
 
     } catch (err) { console.error('Error en procesarEnvioMensaje:', err) }
@@ -241,6 +246,17 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
         if (thanks.some(t => bodyLower.includes(t))) {
             return await flowDynamic(`¡De nada, *${user.nombre || 'estimado'}*! 😊 Fue un gusto ayudarte. Si tienes más dudas en el futuro, aquí estaré. ¡Que tengas un excelente día! 🎓✨`);
+        }
+
+        // 1.5 Respuesta Directa a Categorías (Solo la palabra clave)
+        const categoriesSolo = ['maestrias', 'maestria', 'doctorados', 'doctorado', 'especialidades', 'especialidad'];
+        if (categoriesSolo.includes(bodyLower)) {
+            const cat = findCategory(bodyLower);
+            if (cat) {
+                const list = getContextForCategory(cat);
+                console.log(`[Flow] Respuesta directa de categoría: ${cat}`);
+                return await flowDynamic(list);
+            }
         }
 
         // 2. Confirmación de Brochure o Asesor (REACCION A "SI")
@@ -318,6 +334,15 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             console.log(`[RAG] Categoría detectada: ${categoryMatch}`);
         } else {
             dynamicContext = "Contamos con Maestrías, Doctorados y Especialidades en 7 facultades: Salud, Ingeniería (Industrial, Eléctrica, Pesquera), Administración, Contables y Educación.";
+        }
+
+        // 5.5 RAG Complementario (Supabase Knowledge Base)
+        if (embedding) {
+            const extraContext = await getRAGContext(embedding);
+            if (extraContext) {
+                dynamicContext += `\n\n${extraContext}`;
+                console.log(`[RAG] Información adicional recuperada de Supabase.`);
+            }
         }
 
         // 6. Consulta Grok
