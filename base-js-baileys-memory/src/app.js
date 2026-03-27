@@ -223,10 +223,8 @@ const flowVerificacion = addKeyword(['verificar', 'inscripción', 'inscripcion',
 
                     const s = await state.getMyState() || {};
                     const user = loadUserData(ctx.from);
-                    if (s.infoEnviada || user.infoEnviada) {
-                        return await flowDynamic(`✅ ¡Hola ${data.nombre}! Tu inscripción para *${data.programa}* ya está confirmada. Si tienes más dudas, ¡avísame! ✨`);
-                    }
-
+                    
+                    // Ya no bloqueamos si infoEnviada es true, siempre enviamos si verifica DNI
                     await flowDynamic(`✅ ¡Excelente ${data.nombre}! Encontramos tu registro para *${data.programa}*.\nEn breve te enviaremos la información detallada... 🚀`);
                     await state.update({ infoEnviada: true });
                     saveUser(ctx.from, { infoEnviada: true });
