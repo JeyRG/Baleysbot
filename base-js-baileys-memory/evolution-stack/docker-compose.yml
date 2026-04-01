@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  evolution-db:
+    image: postgres:15-alpine
+    container_name: evolution_db
+    environment:
+      POSTGRES_DB: evolution
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+    volumes:
+      - evolution_db_data:/var/lib/postgresql/data
+    networks:
+      - evolution_net
+
+  evolution-redis:
+    image: redis:alpine
+    container_name: evolution_redis
+    networks:
+      - evolution_net
+
+  evolution-api:
+    image: atendai/evolution-api:v1.8.7
+    container_name: evolution_api
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.evolution
+    depends_on:
+      - evolution-db
+      - evolution-redis
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    networks:
+      - evolution_net
+    restart: always
+
+  evolution-manager:
+    image: atendai/evolution-manager:latest
+    container_name: evolution_manager
+    ports:
+      - "4444:4444"
+    environment:
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_TOKEN=GlobalApiKeyParaLlamarALaApiDeEvolution
+    depends_on:
+      - evolution-api
+    networks:
+      - evolution_net
+
+volumes:
+  evolution_db_data:
+  evolution_instances:
+  evolution_store:
+
+networks:
+  evolution_net:
+    driver: bridge

@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "url": "http://host.docker.internal:3000/webhook",
+  "webhook_by_events": false,
+  "events": ["MESSAGES_UPSERT", "MESSAGES_UPDATE", "CONNECTION_UPDATE"]
+}

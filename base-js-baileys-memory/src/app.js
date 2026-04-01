@@ -4,7 +4,7 @@ import path from 'path'
 import { join } from 'path'
 import { createBot, createProvider, createFlow, addKeyword, utils, EVENTS } from '@builderbot/bot'
 import { MemoryDB as Database } from '@builderbot/bot'
-import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
+import { EvolutionProvider as Provider } from '@builderbot/provider-evolution-api'
 import { getGrokCompletion as originalGetGrokCompletion } from './grokClient.js'
 
 // Servicios
@@ -440,7 +440,11 @@ const pendingTimers = new Map();
 
 const main = async () => {
     const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowVerificacion])
-    const adapterProvider = createProvider(Provider, { version: [2, 3000, 1035824857] });
+    const adapterProvider = createProvider(Provider, {
+        baseURL: process.env.EVOLUTION_URL,
+        instanceName: process.env.EVOLUTION_INSTANCE,
+        apiKey: process.env.EVOLUTION_TOKEN
+    });
     const adapterDB = new Database();
 
     const { handleCtx, httpServer } = await createBot({
