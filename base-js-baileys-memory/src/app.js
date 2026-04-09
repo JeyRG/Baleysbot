@@ -163,21 +163,24 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         const numero = target;
 
         // 1. Determinar el link del grupo (Misma lógica simple)
-        let groupLink = 'https://chat.whatsapp.com/LhXWlYhY9oP4j1Y0p1Y0p1'; // Default
+        let groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl?mode=gi_t'; // Default
         const p = programa.toLowerCase();
         if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/FAMzS7tQJ9mD8oJ7tE8u8p';
         else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/J8tE8u8pFAMzS7tQJ9mD8o';
 
         // 2. Información base
-        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-1234567'; let cci = '009-100-0000001234567-89'; let costo = 'S/ 500';
+        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-1234567'; let cci = '009-100-0000001234567-89'; let costo = 'S/ 2500';
         let reqDoc = 'Copia del Grado Académico de Bachiller.';
-        
+        let matricula = 'S/ 100';
+
         if (p.includes('doctorado')) {
-            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-9876543'; cci = '009-100-0000009876543-21'; costo = 'S/ 1000';
+            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-9876543'; cci = '009-100-0000009876543-21'; costo = 'S/ 2500';
             reqDoc = 'Copia del Grado Académico de Maestro o constancia de egresado.';
+            matricula = 'S/ 100';
         } else if (p.includes('especialidad')) {
             precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
             reqDoc = 'Copia del Título Profesional universitario.';
+            matricula = 'S/ 200';
         }
 
         // 1. Bienvenida
@@ -189,6 +192,7 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
 📌 Inscripción: ${precio}
 🏦 Banco: Scotiabank (Cta: ${cuenta} / CCI: ${cci})
 ⏳ Duración: ${duracion}
+📌 Matricula: ${matricula}
 💵 Costo Semestre: ${costo}
 
 📅 *Fechas Clave:*
@@ -225,7 +229,7 @@ ${groupLink}`;
             console.log(`[Flow] ✅ Brochure encontrado: ${targetProgram.nombre} -> ${targetProgram.brochure}`);
             await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
             await delay(1500);
-            
+
             // Envío robusto compatible con BuilderBot
             // Envío compatible con BuilderBot (Usamos texto no vacío para evitar error de match)
             await provider.sendMessage(numero, "Brochure Oficial 📄", {
@@ -269,7 +273,7 @@ const flowVerificacion = addKeyword(['verificar', 'inscripción', 'inscripcion',
 
                     const s = await state.getMyState() || {};
                     const user = loadUserData(ctx.from);
-                    
+
                     // Ya no bloqueamos si infoEnviada es true, siempre enviamos si verifica DNI
                     await flowDynamic(`✅ ¡Excelente ${data.nombre}! Encontramos tu registro para *${data.programa}*.\nEn breve te enviaremos la información detallada... 🚀`);
                     await state.update({ infoEnviada: true });
@@ -480,7 +484,7 @@ const main = async () => {
         if (currentCounter.count < 20) {
             const newCount = incrementLeadsCounter();
             console.log(`[API] Lead #${newCount} del día. Envío INMEDIATO (Vía Rápida) para ${targetNumber}`);
-            
+
             try {
                 // Usamos la valla de seguridad de infoEnviada solo para el contador real, 
                 // pero aquí ejecutamos para asegurar que el usuario vea el resultado
