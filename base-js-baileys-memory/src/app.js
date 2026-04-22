@@ -135,7 +135,7 @@ const solicitudAsesorFlow = addKeyword(['SOLICITUD_ASESOR_MANUAL', 'SOLICITUD_AS
     .addAction(async (ctx, { provider, flowDynamic }) => {
         const userId = ctx.from;
         console.log(`[Handoff] Usuario ${userId} solicitó asesor humano.`);
-        
+
         try {
             // 1. Marcar en la base de datos
             await supabase
@@ -515,7 +515,7 @@ const processApiQueue = async (provider) => {
         const { targetNumber, nombre, facultad, programa } = item;
 
         console.log(`[Queue] Procesando mensaje para ${nombre} (${targetNumber})...`);
-        
+
         try {
             await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, provider);
             saveUser(targetNumber, { infoEnviada: true });
@@ -555,7 +555,7 @@ const main = async () => {
         console.log('[Bot] ✅ Conexión establecida y lista.');
         botStatus.connected = true;
         botStatus.waiting_qr = false;
-        
+
         // Limpieza de archivos QR viejos
         const qrPath = path.join(process.cwd(), 'bot.qr.png');
         const lastQrPath = path.join(process.cwd(), 'last_qr.txt');
@@ -575,7 +575,7 @@ const main = async () => {
         if (ctx.from === 'status@broadcast') return;
 
         console.log(`[Dashboard Sync] Mensaje de ${ctx.from}: ${ctx.body}`);
-        
+
         try {
             // 1. Asegurar que existe la conversación (upsert explícito)
             const { data: existingConv } = await supabase
@@ -603,14 +603,14 @@ const main = async () => {
                 return;
             }
             const msgText = ctx.body || (
-                ctx.type === 'image' ? '📷 Imagen' : 
-                ctx.type === 'audio' ? '🎵 Audio' : 
-                ctx.type === 'video' ? '🎬 Video' : 
-                ctx.type === 'document' ? '📄 Documento' : 
-                ctx.type === 'sticker' ? '✨ Sticker' :
-                ctx.type === 'location' ? '📍 Ubicación' :
-                ctx.type === 'contact' ? '👤 Contacto' :
-                null
+                ctx.type === 'image' ? '📷 Imagen' :
+                    ctx.type === 'audio' ? '🎵 Audio' :
+                        ctx.type === 'video' ? '🎬 Video' :
+                            ctx.type === 'document' ? '📄 Documento' :
+                                ctx.type === 'sticker' ? '✨ Sticker' :
+                                    ctx.type === 'location' ? '📍 Ubicación' :
+                                        ctx.type === 'contact' ? '👤 Contacto' :
+                                            null
             );
             if (!msgText) return; // Ignorar tipos desconocidos sin texto
             await supabase.from('messages').insert({
@@ -630,10 +630,10 @@ const main = async () => {
 
     adapterProvider.sendMessage = async (number, message, options) => {
         const result = await originalSendMessage.call(adapterProvider, number, message, options);
-        
+
         // Normalizar el wa_id (quitar @s.whatsapp.net para que coincida con ctx.from)
         const cleanNumber = number.includes('@') ? number.split('@')[0] : number;
-        
+
         // Si este mensaje fue originado desde el dashboard, NO lo insertamos otra vez
         const dedupKey = `${cleanNumber}:${typeof message === 'string' ? message : ''}`;
         if (_dashboardPendingSends.has(dedupKey)) {
@@ -643,7 +643,7 @@ const main = async () => {
                 await supabase.from('conversations')
                     .update({ updated_at: new Date().toISOString() })
                     .eq('wa_id', cleanNumber);
-            } catch(e) {}
+            } catch (e) { }
             return result;
         }
 
@@ -676,7 +676,7 @@ const main = async () => {
         } catch (e) {
             console.error('[Dashboard Sync] Error al persistir respuesta del Bot:', e);
         }
-        
+
         return result;
     };
 
@@ -689,12 +689,12 @@ const main = async () => {
     // Middleware Global para CORS y JSON (Compatible con Polka/BuilderBot)
     adapterProvider.server.use(cors());
     adapterProvider.server.use(express.json());
-    
+
     adapterProvider.server.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-        
+
         // Logger básico para depuración
         if (req.url.startsWith('/bot/')) {
             console.log(`[Dashboard API] ${req.method} ${req.url}`);
@@ -727,7 +727,7 @@ const main = async () => {
 
         const qrPath = path.join(process.cwd(), 'bot.qr.png');
         const hasQrFile = fs.existsSync(qrPath);
-        
+
         let qr_base64 = null;
         if (hasQrFile) {
             try {
@@ -737,9 +737,9 @@ const main = async () => {
                 console.error('[Dashboard] Error convirtiendo QR a Base64:', e);
             }
         }
-        
+
         console.log(`[Dashboard] Estado: conectado=${botStatus.connected}, qr_disponible=${!!qr_base64}`);
-        
+
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
             connected: botStatus.connected,
@@ -752,15 +752,14 @@ const main = async () => {
 
 
     // 1. Escuchar mensajes enviados desde el Dashboard
-    supabase.channel('dashboard-send')
+    const channel = supabase.channel('dashboard-send')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'sender_type=eq.dashboard' }, async (payload) => {
             const { wa_id, text, media_url } = payload.new;
-            console.log(`[Dashboard] Reenviando mensaje a ${wa_id}: ${text}`);
+            console.log(`[Dashboard] 📩 Reenviando mensaje a ${wa_id}: ${text}`);
             
             const target = wa_id.includes('@') ? wa_id : `${wa_id}@s.whatsapp.net`;
             const cleanWa = wa_id.includes('@') ? wa_id.split('@')[0] : wa_id;
             
-            // Marcar como mensaje de dashboard para evitar duplicado en el interceptor
             _dashboardPendingSends.add(`${cleanWa}:${text || ''}`);
             
             try {
@@ -769,16 +768,16 @@ const main = async () => {
                 } else {
                     await adapterProvider.sendMessage(target, text, {});
                 }
+                console.log(`[Dashboard] ✅ Mensaje enviado a ${wa_id}`);
             } catch (err) {
-                console.error('[Dashboard] Error al reenviar:', err);
-                // Limpiar si falla para no dejar basura
+                console.error('[Dashboard] ❌ Error al reenviar:', err);
                 _dashboardPendingSends.delete(`${cleanWa}:${text || ''}`);
             }
         })
         .subscribe();
 
     // --- NUEVOS ENDPOINTS PARA GESTIÓN DE RAG (ENTRENAMIENTO) ---
-    
+
     // Listar Dudas Pendientes (Feedback Loop)
     adapterProvider.server.get('/bot/unresolved', async (req, res) => {
 
@@ -788,7 +787,7 @@ const main = async () => {
                 .select('*')
                 .eq('resolved', false)
                 .order('created_at', { ascending: false });
-            
+
             if (error) throw error;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(data));
@@ -817,7 +816,7 @@ const main = async () => {
             const { error: insertError } = await supabase
                 .from('knowledge_base')
                 .insert({ content, embedding });
-            
+
             if (insertError) throw insertError;
 
             // 2. Marcar como resuelta
@@ -845,7 +844,7 @@ const main = async () => {
                 .from('knowledge_base')
                 .select('id, content, metadata, created_at')
                 .order('created_at', { ascending: false });
-            
+
             if (error) throw error;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(data));
@@ -953,7 +952,7 @@ const main = async () => {
                 .from('semantic_cache')
                 .select('id, question, answer, created_at')
                 .order('created_at', { ascending: false });
-            
+
             if (error) throw error;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(data));
@@ -969,7 +968,7 @@ const main = async () => {
         try {
             const { id } = req.params;
             const { answer } = req.body;
-            
+
             if (!answer) {
                 res.statusCode = 400;
                 return res.end(JSON.stringify({ error: 'La respuesta es requerida' }));
@@ -994,14 +993,14 @@ const main = async () => {
     adapterProvider.server.delete('/bot/cache/:id', async (req, res) => {
         try {
             const { id } = req.params;
-            
+
             // Caso especial: Limpiar toda la memoria
             if (id === 'all') {
                 const { error } = await supabase
                     .from('semantic_cache')
                     .delete()
                     .neq('id', '00000000-0000-0000-0000-000000000000'); // Borrar todo
-                
+
                 if (error) throw error;
                 res.setHeader('Content-Type', 'application/json');
                 return res.end(JSON.stringify({ success: true, message: 'Memoria limpiada totalmente' }));
