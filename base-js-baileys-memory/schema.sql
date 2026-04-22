@@ -19,16 +19,19 @@ CREATE TABLE IF NOT EXISTS public.conversations (
     wa_id TEXT UNIQUE NOT NULL,
     student_id UUID REFERENCES public.students(id) ON DELETE SET NULL,
     status TEXT NOT NULL DEFAULT 'bot' CHECK (status IN ('bot', 'human_active')),
+    last_message TEXT,
     metadata JSONB DEFAULT '{}'::jsonb,
     last_activity_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Tabla de Mensajes
+-- Tabla de Mensajes (Ajustada para flexibilidad con wa_id)
 CREATE TABLE IF NOT EXISTS public.messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+    conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE, -- Sin NOT NULL para permitir que el trigger actúe
+
+    wa_id TEXT, -- Columna añadida para facilitar la inserción directa
     sender_type TEXT NOT NULL CHECK (sender_type IN ('user', 'bot', 'dashboard', 'mobile')),
     text TEXT,
     media_url TEXT,
@@ -41,6 +44,16 @@ CREATE TABLE IF NOT EXISTS public.knowledge_base (
     content TEXT NOT NULL,
     metadata JSONB DEFAULT '{}'::jsonb,
     embedding vector(384)
+);
+
+-- [NUEVO] Tabla de Dudas No Resueltas (Feedback Loop)
+CREATE TABLE IF NOT EXISTS public.unresolved_queries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    query TEXT NOT NULL,
+    wa_id TEXT,
+    embedding vector(384),
+    resolved BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
 -- Tabla de Telemetría (NUEVO)
@@ -56,9 +69,47 @@ CREATE TABLE IF NOT EXISTS public.bot_logs (
 
 -- Índices
 CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON public.messages(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_messages_wa_id ON public.messages(wa_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_status ON public.conversations(status);
 CREATE INDEX IF NOT EXISTS idx_knowledge_base_embedding ON public.knowledge_base USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS idx_unresolved_queries_resolved ON public.unresolved_queries(resolved);
 CREATE INDEX IF NOT EXISTS idx_students_wa_id ON public.students(wa_id);
+
+-- Trigger para vincular mensajes a conversaciones automáticamente
+CREATE OR REPLACE FUNCTION link_message_to_conversation()
+RETURNS TRIGGER AS $$
+DECLARE
+    conv_id UUID;
+BEGIN
+    -- Si no tiene conversación asignada pero tiene wa_id, buscar o crear
+    IF NEW.conversation_id IS NULL AND NEW.wa_id IS NOT NULL THEN
+        -- 1. Buscar conversación existente
+        SELECT id INTO conv_id FROM public.conversations WHERE wa_id = NEW.wa_id LIMIT 1;
+        
+        -- 2. Si no existe, crearla al vuelo
+        IF conv_id IS NULL THEN
+            INSERT INTO public.conversations (wa_id, last_message, updated_at) 
+            VALUES (NEW.wa_id, NEW.text, now()) 
+            RETURNING id INTO conv_id;
+        ELSE
+            -- 3. Si existe, actualizar el rastro
+            UPDATE public.conversations 
+            SET last_message = NEW.text, updated_at = now() 
+            WHERE id = conv_id;
+        END IF;
+        
+        NEW.conversation_id := conv_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+DROP TRIGGER IF EXISTS trg_link_message ON public.messages;
+CREATE TRIGGER trg_link_message
+BEFORE INSERT ON public.messages
+FOR EACH ROW
+EXECUTE FUNCTION link_message_to_conversation();
 
 -- RLS
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
@@ -66,6 +117,7 @@ ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.knowledge_base ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bot_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.unresolved_queries ENABLE ROW LEVEL SECURITY;
 
 -- Políticas
 DO $$
@@ -77,17 +129,21 @@ BEGIN
     DROP POLICY IF EXISTS "Leer KB" ON public.knowledge_base;
     DROP POLICY IF EXISTS "Administrar students autenticado" ON public.students;
     DROP POLICY IF EXISTS "Administrar logs autenticado" ON public.bot_logs;
+    DROP POLICY IF EXISTS "Administrar dudas" ON public.unresolved_queries;
 EXCEPTION
     WHEN undefined_object THEN null;
 END $$;
 
-CREATE POLICY "Leer conversaciones autenticado" ON public.conversations FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Actualizar conversaciones autenticado" ON public.conversations FOR UPDATE USING (auth.role() = 'authenticated');
-CREATE POLICY "Leer mensajes autenticado" ON public.messages FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Insertar mensajes autenticado" ON public.messages FOR INSERT WITH CHECK (auth.role() = 'authenticated');
-CREATE POLICY "Leer KB" ON public.knowledge_base FOR SELECT USING (auth.role() = 'authenticated');
-CREATE POLICY "Administrar students autenticado" ON public.students FOR ALL USING (auth.role() = 'authenticated');
-CREATE POLICY "Administrar logs autenticado" ON public.bot_logs FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Leer conversaciones publico" ON public.conversations FOR SELECT USING (true);
+CREATE POLICY "Actualizar conversaciones publico" ON public.conversations FOR UPDATE USING (true);
+CREATE POLICY "Leer mensajes publico" ON public.messages FOR SELECT USING (true);
+CREATE POLICY "Insertar mensajes publico" ON public.messages FOR INSERT WITH CHECK (true);
+CREATE POLICY "Leer KB publico" ON public.knowledge_base FOR SELECT USING (true);
+CREATE POLICY "Administrar students publico" ON public.students FOR ALL USING (true);
+CREATE POLICY "Administrar logs publico" ON public.bot_logs FOR ALL USING (true);
+CREATE POLICY "Administrar dudas publico" ON public.unresolved_queries FOR ALL USING (true);
+CREATE POLICY "Administrar cache publico" ON public.semantic_cache FOR ALL USING (true);
+
 
 -- Realtime
 DO $$

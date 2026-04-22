@@ -1,0 +1,37 @@
+PLAN DE TRABAJO (VERSIÓN PHP): INTEGRACIÓN CHAT WEB + SUPABASE + GROQ
+
+OBJETIVO:
+Utilizar PHP como motor del widget de chat para facilitar la integración con tu servidor actual y el dashboard, manteniendo la persistencia en Supabase y la potencia de Groq.
+
+¿POR QUÉ USAR PHP EN LUGAR DE NODE.JS?
+1. Simplicidad: Si ya tienes un servidor web (XAMPP, VPS con Apache/Nginx), no necesitas configurar un servidor Node.js adicional para la web.
+2. Integración: Ya tienes una clase 'SupabaseClient' en PHP que podemos reutilizar.
+3. Portabilidad: La carpeta del widget será 100% autónoma con su lógica de backend incluida.
+
+PASOS A SEGUIR:
+
+FASE 1: PREPARACIÓN DEL "PUENTE" PHP
+1. Crear un archivo 'chat-handler.php' dentro de la carpeta del widget.
+2. Incluir la configuración de Supabase (URL y API KEY).
+3. Configurar las cabeceras CORS en PHP para permitir acceso desde otros dominios.
+
+FASE 2: LÓGICA DE INTELIGENCIA (GROQ)
+1. Implementar la llamada CURL hacia la API de Groq (Llama 3.3).
+2. Configurar el "Prompt" del sistema para que el agente se comporte igual que el de WhatsApp.
+
+FASE 3: PERSISTENCIA EN BASE DE DATOS
+1. Programar la inserción de cada mensaje en la tabla 'mensajes' de tu Supabase.
+2. Programar el 'upsert' en la tabla 'conversaciones' usando un ID especial (ej: web_session_123).
+   ESTO ES CLAVE: Permitirá que los mensajes aparezcan en tu Dashboard actual de PHP.
+
+FASE 4: INTEGRACIÓN CON EL FRONTEND
+1. Actualizar 'widget.js' para que envíe las preguntas a 'chat-handler.php' mediante AJAX/Fetch.
+2. Probar el flujo completo: Web -> PHP -> Groq -> Supabase -> Dashboard.
+
+IMPORTANTE SOBRE EL RAG (BÚSQUEDA DE CONOCIMIENTOS):
+Tu bot de WhatsApp actual usa un modelo de IA "local" en Node.js para buscar en la base de datos. En PHP, para lograr la MISMA precisión, necesitaremos:
+- Opción A: Usar una API externa de embeddings (como OpenAI).
+- Opción B: Que el chat web sea conversacional directo (sin búsqueda profunda en la base de documentos de Supabase por ahora).
+
+¿CÓMO PROBARLO?
+Simplemente abre la consola del navegador en tu página web y observa que la petición a 'chat-handler.php' devuelva un estado 200 y la respuesta del bot.

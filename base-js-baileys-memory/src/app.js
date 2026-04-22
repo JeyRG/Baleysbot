@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import fs from 'fs'
 import path from 'path'
+import cors from 'cors'
+import express from 'express'
 import { join } from 'path'
 import { createBot, createProvider, createFlow, addKeyword, utils, EVENTS } from '@builderbot/bot'
 import { MemoryDB as Database } from '@builderbot/bot'
@@ -54,8 +56,9 @@ const getLeadsCounter = () => {
     } catch (e) { return { date: new Date().toISOString().split('T')[0], count: 0 }; }
 };
 
-const incrementLeadsCounter = () => {
+const incrementLeadsCounter = (limit = 50) => {
     const data = getLeadsCounter();
+    if (data.count >= limit) return -1; // Indicar límite alcanzado
     data.count++;
     fs.writeFileSync(COUNTER_PATH, JSON.stringify(data), 'utf8');
     return data.count;
@@ -128,24 +131,36 @@ const resetFlow = addKeyword(['reiniciar', 'reset', 'configurar', 'borrar'])
 /**
  * Flujo de Solicitud de Asesor Humano
  */
-const solicitudAsesorFlow = addKeyword(['SOLICITUD_ASESOR_MANUAL', 'SOLICITUD_ASESOR'])
+const solicitudAsesorFlow = addKeyword(['SOLICITUD_ASESOR_MANUAL', 'SOLICITUD_ASESOR', 'asesor', 'ayuda humana', 'hablar con alguien'])
     .addAction(async (ctx, { provider, flowDynamic }) => {
-        const user = loadUserData(ctx.from);
-        const adminMsg = `🚨 *NUEVA SOLICITUD DE ASESOR* 🚨\n\n` +
-            `👤 *Nombre:* ${user.nombre || 'No registrado'}\n` +
-            `📞 *Teléfono:* ${ctx.from}\n` +
-            `💬 *Motivo:* El usuario solicitó un asesor humano.\n` +
-            `📱 *WhatsApp:* wa.me/${ctx.from}`;
-
-        const targetAdmin = '51900969591@s.whatsapp.net';
-        console.log(`[Flow] Notificación automática a: ${targetAdmin}`);
-
+        const userId = ctx.from;
+        console.log(`[Handoff] Usuario ${userId} solicitó asesor humano.`);
+        
         try {
-            await provider.sendMessage(targetAdmin, adminMsg, {});
-            await flowDynamic('✅ ¡Excelente! He avisado a un asesor humano. Se comunicarán contigo pronto por este mismo chat. 🕒');
-        } catch (error) {
-            console.error(`[Flow] Error al notificar admin:`, error);
+            // 1. Marcar en la base de datos
+            await supabase
+                .from('conversations')
+                .update({ status: 'human_active', updated_at: new Date().toISOString() })
+                .eq('wa_id', userId);
+
+            // 2. Notificar al usuario
+            await flowDynamic([
+                '👨‍💻 *Entendido. He solicitado la intervención de un asesor humano.*',
+                'En breve uno de nuestros coordinadores se unirá al chat para ayudarte personalmente. Mientras tanto, puedes dejar tu consulta aquí. 👇'
+            ]);
+        } catch (e) {
+            console.error('[Handoff] Error al activar modo manual:', e);
+            await flowDynamic('Lo siento, tuve un problema al procesar tu solicitud. Por favor, intenta de nuevo en unos momentos.');
         }
+    });
+
+/**
+ * FLUJO PARA CAPTURAR MULTIMEDIA ENTRANTE (DASHBOARD)
+ */
+const mediaFlow = addKeyword(EVENTS.MEDIA)
+    .addAction(async (ctx) => {
+        console.log(`[Bot] Multimedia recibida de ${ctx.from}.`);
+
     });
 
 // Ayuda de retardo
@@ -293,10 +308,23 @@ const flowVerificacion = addKeyword(['verificar', 'inscripción', 'inscripcion',
     )
 
 const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
-    .addAction(async (ctx, { flowDynamic, state, provider, gotoFlow }) => {
+    .addAction(async (ctx, { flowDynamic, state, provider, gotoFlow, endFlow }) => {
         const userId = ctx.from;
         const body = ctx.body?.trim() || '';
         if (!body) return;
+
+        // --- INICIO CONTROL HANDOFF (DASHBOARD) ---
+        const { data: convData } = await supabase
+            .from('conversations')
+            .select('status')
+            .eq('wa_id', userId)
+            .single();
+
+        if (convData?.status === 'human_active') {
+            console.log(`[Bot] Modo Manual activado para ${userId}. Ignorando respuesta automática.`);
+            return endFlow(); // Detiene el flujo del bot para este usuario
+        }
+        // --- FIN CONTROL HANDOFF ---
 
         let user = loadUserData(userId);
         const bodyLower = body.toLowerCase();
@@ -309,6 +337,20 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
         if (thanks.some(t => bodyLower.includes(t))) {
             return await flowDynamic(`¡De nada, *${user.nombre || 'estimado'}*! 😊 Fue un gusto ayudarte. Si tienes más dudas en el futuro, aquí estaré. ¡Que tengas un excelente día! 🎓✨`);
+        }
+
+        // 2. Detección de solicitud de asesor humano (desde el usuario)
+        const asesorKeywords = ['solicitud asesor', 'asesor', 'ayuda humana', 'hablar con alguien', 'quiero hablar con una persona', 'necesito ayuda real', 'agente humano', 'operador'];
+        if (asesorKeywords.some(k => bodyLower.includes(k))) {
+            console.log(`[Handoff] Usuario ${userId} solicitó asesor humano directamente.`);
+            await supabase
+                .from('conversations')
+                .update({ status: 'human_active', updated_at: new Date().toISOString() })
+                .eq('wa_id', userId);
+            return await flowDynamic([
+                '👨‍💼 *Entendido. He solicitado la intervención de un asesor humano.*',
+                'En breve uno de nuestros coordinadores se unirá al chat para ayudarte personalmente. Mientras tanto, puedes dejar tu consulta aquí. 👇'
+            ]);
         }
 
         // 1.5 Respuesta Directa a Categorías (Solo la palabra clave)
@@ -370,6 +412,8 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         // 4. Caché Semántico
         let embedding = null;
         try {
+
+
             embedding = await getEmbedding(body);
             if (embedding) {
                 const cachedAnswer = await checkSemanticCache(embedding);
@@ -401,10 +445,24 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
         // 5.5 RAG Complementario (Supabase Knowledge Base)
         if (embedding) {
-            const extraContext = await getRAGContext(embedding);
-            if (extraContext) {
+            const { data: documents } = await supabase.rpc('match_documents', {
+                query_embedding: embedding,
+                match_threshold: 0.78, // Umbral de confianza
+                match_count: 3
+            });
+
+            if (documents && documents.length > 0) {
+                const extraContext = documents.map(d => d.content).join('\n\n');
                 dynamicContext += `\n\n${extraContext}`;
                 console.log(`[RAG] Información adicional recuperada de Supabase.`);
+            } else {
+                // REGISTRO DE DUDA NO RESUELTA (Feedback Loop)
+                console.log(`[RAG] ⚠️ Sin coincidencia clara. Registrando duda para entrenamiento...`);
+                await supabase.from('unresolved_queries').insert({
+                    query: body,
+                    wa_id: userId,
+                    embedding: embedding
+                });
             }
         }
 
@@ -429,23 +487,544 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 console.log(`[Flow] Programa pendiente de confirmación: ${targetProgram.nombre}`);
             }
 
-            // 8. Interceptar [SOLICITUD_ASESOR] (Derivación Reactiva)
+            // 8. Interceptar [SOLICITUD_ASESOR] (Derivación Reactiva Automática)
             if (response.includes('[SOLICITUD_ASESOR]')) {
-                await state.update({ pendingAdvisor: true });
-                console.log(`[Flow] Derivación preparada. Esperando confirmación del usuario.`);
+                console.log(`[Flow] IA solicitó derivación para ${userId}. Activando Modo Manual.`);
+                await supabase
+                    .from('conversations')
+                    .update({ status: 'human_active', updated_at: new Date().toISOString() })
+                    .eq('wa_id', userId);
             }
         } else {
             await flowDynamic("Lo siento, tuve un problema al procesar tu consulta. ¿Podrías repetirla? 🔄");
         }
     });
 
-// Mapa global para gestionar temporizadores de leads (DNI -> Timer)
-const pendingTimers = new Map();
+/**
+ * SISTEMA DE COLA PARA API EXTERNA (Pre-inscripción)
+ */
+const apiQueue = [];
+let isProcessingQueue = false;
+
+const processApiQueue = async (provider) => {
+    if (isProcessingQueue || apiQueue.length === 0) return;
+    isProcessingQueue = true;
+
+    while (apiQueue.length > 0) {
+        const item = apiQueue.shift();
+        const { targetNumber, nombre, facultad, programa } = item;
+
+        console.log(`[Queue] Procesando mensaje para ${nombre} (${targetNumber})...`);
+        
+        try {
+            await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, provider);
+            saveUser(targetNumber, { infoEnviada: true });
+            console.log(`[Queue] Mensaje enviado exitosamente a ${targetNumber}.`);
+        } catch (error) {
+            console.error(`[Queue] Error al procesar envío para ${targetNumber}:`, error);
+        }
+
+        // Espera aleatoria entre 2 y 3 minutos (120s - 180s)
+        const waitTime = Math.floor(Math.random() * (180000 - 120000 + 1)) + 120000;
+        console.log(`[Queue] Esperando ${Math.round(waitTime / 1000)}s antes del próximo envío. Quedan: ${apiQueue.length}`);
+        await delay(waitTime);
+    }
+
+    isProcessingQueue = false;
+};
 
 const main = async () => {
-    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowVerificacion])
+    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowVerificacion, mediaFlow])
     const adapterProvider = createProvider(Provider, { version: [2, 3000, 1035824857] });
     const adapterDB = new Database();
+
+    // --- ESCUCHAR EVENTOS DEL PROVIDER ---
+    let botStatus = { connected: false, waiting_qr: false };
+
+    adapterProvider.on('require_action', (payload) => {
+        if (payload.type === 'qr') {
+            console.log(`[Bot] ⚡ NUEVO QR RECIBIDO (vía require_action)`);
+            botStatus.connected = false;
+            botStatus.waiting_qr = true;
+            // Guardar el string del QR para el generador externo
+            fs.writeFileSync(path.join(process.cwd(), 'last_qr.txt'), payload.value);
+        }
+    });
+
+    adapterProvider.on('ready', () => {
+        console.log('[Bot] ✅ Conexión establecida y lista.');
+        botStatus.connected = true;
+        botStatus.waiting_qr = false;
+        
+        // Limpieza de archivos QR viejos
+        const qrPath = path.join(process.cwd(), 'bot.qr.png');
+        const lastQrPath = path.join(process.cwd(), 'last_qr.txt');
+        if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
+        if (fs.existsSync(lastQrPath)) fs.unlinkSync(lastQrPath);
+    });
+
+    adapterProvider.on('auth_failure', (error) => {
+        console.error('[Bot] ❌ Error de autenticación:', error);
+        botStatus.connected = false;
+        botStatus.waiting_qr = false;
+    });
+
+    // --- ESCUCHA GLOBAL DE MENSAJES (PARA DASHBOARD) ---
+    adapterProvider.on('message', async (ctx) => {
+        // Ignorar estados de WhatsApp (historias)
+        if (ctx.from === 'status@broadcast') return;
+
+        console.log(`[Dashboard Sync] Mensaje de ${ctx.from}: ${ctx.body}`);
+        
+        try {
+            // 1. Asegurar que existe la conversación (upsert explícito)
+            const { data: existingConv } = await supabase
+                .from('conversations')
+                .select('id')
+                .eq('wa_id', ctx.from)
+                .single();
+
+            if (!existingConv) {
+                await supabase.from('conversations').insert({
+                    wa_id: ctx.from,
+                    status: 'bot',
+                    updated_at: new Date().toISOString()
+                });
+                console.log(`[Dashboard Sync] Nueva conversación creada para ${ctx.from}`);
+            } else {
+                await supabase.from('conversations')
+                    .update({ updated_at: new Date().toISOString() })
+                    .eq('wa_id', ctx.from);
+            }
+
+            // 2. Insertar el mensaje (filtrar eventos internos y stickers)
+            if (ctx.body?.startsWith('_event_')) {
+                console.log(`[Dashboard Sync] Ignorando evento interno: ${ctx.body}`);
+                return;
+            }
+            const msgText = ctx.body || (
+                ctx.type === 'image' ? '📷 Imagen' : 
+                ctx.type === 'audio' ? '🎵 Audio' : 
+                ctx.type === 'video' ? '🎬 Video' : 
+                ctx.type === 'document' ? '📄 Documento' : 
+                ctx.type === 'sticker' ? '✨ Sticker' :
+                ctx.type === 'location' ? '📍 Ubicación' :
+                ctx.type === 'contact' ? '👤 Contacto' :
+                null
+            );
+            if (!msgText) return; // Ignorar tipos desconocidos sin texto
+            await supabase.from('messages').insert({
+                wa_id: ctx.from,
+                text: msgText,
+                media_url: ctx.url || null,
+                sender_type: 'user'
+            });
+        } catch (e) {
+            console.error('[Dashboard Sync] Error al persistir mensaje entrante:', e);
+        }
+    });
+
+    // Interceptar el envío de mensajes del Bot para persistirlos también
+    const originalSendMessage = adapterProvider.sendMessage;
+    const _dashboardPendingSends = new Set(); // Evitar duplicados de mensajes del dashboard
+
+    adapterProvider.sendMessage = async (number, message, options) => {
+        const result = await originalSendMessage.call(adapterProvider, number, message, options);
+        
+        // Normalizar el wa_id (quitar @s.whatsapp.net para que coincida con ctx.from)
+        const cleanNumber = number.includes('@') ? number.split('@')[0] : number;
+        
+        // Si este mensaje fue originado desde el dashboard, NO lo insertamos otra vez
+        const dedupKey = `${cleanNumber}:${typeof message === 'string' ? message : ''}`;
+        if (_dashboardPendingSends.has(dedupKey)) {
+            _dashboardPendingSends.delete(dedupKey);
+            // Solo actualizar el timestamp de la conversación
+            try {
+                await supabase.from('conversations')
+                    .update({ updated_at: new Date().toISOString() })
+                    .eq('wa_id', cleanNumber);
+            } catch(e) {}
+            return result;
+        }
+
+        try {
+            // Asegurar que existe la conversación para mensajes salientes también
+            const { data: existingConv } = await supabase
+                .from('conversations')
+                .select('id')
+                .eq('wa_id', cleanNumber)
+                .single();
+
+            if (!existingConv) {
+                await supabase.from('conversations').insert({
+                    wa_id: cleanNumber,
+                    status: 'bot',
+                    updated_at: new Date().toISOString()
+                });
+            } else {
+                await supabase.from('conversations')
+                    .update({ updated_at: new Date().toISOString() })
+                    .eq('wa_id', cleanNumber);
+            }
+
+            await supabase.from('messages').insert({
+                wa_id: cleanNumber,
+                text: typeof message === 'string' ? message : (options?.media ? '📎 Archivo enviado' : 'Mensaje automático'),
+                media_url: options?.media || null,
+                sender_type: 'bot'
+            });
+        } catch (e) {
+            console.error('[Dashboard Sync] Error al persistir respuesta del Bot:', e);
+        }
+        
+        return result;
+    };
+
+
+
+
+    // --- INICIO INTEGRACIÓN DASHBOARD PREMIUM ---
+    console.log('[Bot] Configurando integración con el Dashboard...');
+
+    // Middleware Global para CORS y JSON (Compatible con Polka/BuilderBot)
+    adapterProvider.server.use(cors());
+    adapterProvider.server.use(express.json());
+    
+    adapterProvider.server.use((req, res, next) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        
+        // Logger básico para depuración
+        if (req.url.startsWith('/bot/')) {
+            console.log(`[Dashboard API] ${req.method} ${req.url}`);
+        }
+
+        // Manejar pre-vuelo (Preflight)
+        if (req.method === 'OPTIONS') {
+            res.statusCode = 204;
+            return res.end();
+        }
+        next();
+    });
+
+    // Endpoint para servir la imagen del QR
+    adapterProvider.server.get('/bot/qr', (req, res) => {
+        const qrPath = path.join(process.cwd(), 'bot.qr.png');
+
+
+        if (fs.existsSync(qrPath)) {
+            console.log('[Dashboard] Sirviendo bot.qr.png local');
+            res.sendFile(qrPath);
+        } else {
+            res.statusCode = 404;
+            res.end('QR no encontrado.');
+        }
+    });
+
+    // Endpoint para obtener el estado de conexión (con QR embebido en Base64)
+    adapterProvider.server.get('/bot/status', (req, res) => {
+
+        const qrPath = path.join(process.cwd(), 'bot.qr.png');
+        const hasQrFile = fs.existsSync(qrPath);
+        
+        let qr_base64 = null;
+        if (hasQrFile) {
+            try {
+                const buffer = fs.readFileSync(qrPath);
+                qr_base64 = `data:image/png;base64,${buffer.toString('base64')}`;
+            } catch (e) {
+                console.error('[Dashboard] Error convirtiendo QR a Base64:', e);
+            }
+        }
+        
+        console.log(`[Dashboard] Estado: conectado=${botStatus.connected}, qr_disponible=${!!qr_base64}`);
+        
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+            connected: botStatus.connected,
+            waiting_qr: botStatus.waiting_qr || hasQrFile,
+            qr_base64: qr_base64,
+            timestamp: new Date().toISOString()
+        }));
+    });
+
+
+
+    // 1. Escuchar mensajes enviados desde el Dashboard
+    supabase.channel('dashboard-send')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'sender_type=eq.dashboard' }, async (payload) => {
+            const { wa_id, text, media_url } = payload.new;
+            console.log(`[Dashboard] Reenviando mensaje a ${wa_id}: ${text}`);
+            
+            const target = wa_id.includes('@') ? wa_id : `${wa_id}@s.whatsapp.net`;
+            const cleanWa = wa_id.includes('@') ? wa_id.split('@')[0] : wa_id;
+            
+            // Marcar como mensaje de dashboard para evitar duplicado en el interceptor
+            _dashboardPendingSends.add(`${cleanWa}:${text || ''}`);
+            
+            try {
+                if (media_url) {
+                    await adapterProvider.sendMessage(target, text || "Archivo adjunto", { media: media_url });
+                } else {
+                    await adapterProvider.sendMessage(target, text, {});
+                }
+            } catch (err) {
+                console.error('[Dashboard] Error al reenviar:', err);
+                // Limpiar si falla para no dejar basura
+                _dashboardPendingSends.delete(`${cleanWa}:${text || ''}`);
+            }
+        })
+        .subscribe();
+
+    // --- NUEVOS ENDPOINTS PARA GESTIÓN DE RAG (ENTRENAMIENTO) ---
+    
+    // Listar Dudas Pendientes (Feedback Loop)
+    adapterProvider.server.get('/bot/unresolved', async (req, res) => {
+
+        try {
+            const { data, error } = await supabase
+                .from('unresolved_queries')
+                .select('*')
+                .eq('resolved', false)
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(data));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Resolver una duda: Mover a Knowledge Base y marcar como resuelta
+    adapterProvider.server.post('/bot/resolve', async (req, res) => {
+
+        try {
+            const { id, content } = req.body;
+            if (!id || !content) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'ID y contenido son requeridos' }));
+            }
+
+            console.log(`[RAG Admin] Resolviendo duda ${id} -> Entrenando bot...`);
+            const embedding = await getEmbedding(content);
+
+            // 1. Insertar en Knowledge Base
+            const { error: insertError } = await supabase
+                .from('knowledge_base')
+                .insert({ content, embedding });
+            
+            if (insertError) throw insertError;
+
+            // 2. Marcar como resuelta
+            const { error: updateError } = await supabase
+                .from('unresolved_queries')
+                .update({ resolved: true })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Listar Base de Conocimientos
+    adapterProvider.server.get('/bot/knowledge', async (req, res) => {
+
+        try {
+            const { data, error } = await supabase
+                .from('knowledge_base')
+                .select('id, content, metadata, created_at')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(data));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Agregar nuevo fragmento con embedding
+    adapterProvider.server.post('/bot/knowledge', async (req, res) => {
+
+        try {
+            const { content, metadata } = req.body;
+            if (!content) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'El contenido es requerido' }));
+            }
+
+            console.log(`[RAG Admin] Generando embedding para nuevo fragmento...`);
+            const embedding = await getEmbedding(content);
+
+            const { data, error } = await supabase
+                .from('knowledge_base')
+                .insert({
+                    content,
+                    metadata: metadata || {},
+                    embedding
+                })
+                .select();
+
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, data: data[0] }));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Actualizar fragmento y su embedding
+    adapterProvider.server.put('/bot/knowledge/:id', async (req, res) => {
+
+        try {
+            const { id } = req.params;
+            const { content, metadata } = req.body;
+            if (!content) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'El contenido es requerido' }));
+            }
+
+            console.log(`[RAG Admin] Actualizando fragmento ID ${id}...`);
+            const embedding = await getEmbedding(content);
+
+            const { data, error } = await supabase
+                .from('knowledge_base')
+                .update({
+                    content,
+                    metadata: metadata || {},
+                    embedding
+                })
+                .eq('id', id)
+                .select();
+
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, data: data[0] }));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Eliminar fragmento
+    adapterProvider.server.delete('/bot/knowledge/:id', async (req, res) => {
+
+        try {
+            const { id } = req.params;
+            const { error } = await supabase
+                .from('knowledge_base')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, message: 'Fragmento eliminado' }));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // --- ENDPOINTS MEMORIA SEMÁNTICA (CACHE) ---
+
+    // Listar Memoria Semántica
+    adapterProvider.server.get('/bot/cache', async (req, res) => {
+        try {
+            const { data, error } = await supabase
+                .from('semantic_cache')
+                .select('id, question, answer, created_at')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(data));
+        } catch (e) {
+            console.error('[Dashboard] Error al listar caché:', e);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: e.message }));
+        }
+    });
+
+    // Actualizar respuesta en la memoria
+    adapterProvider.server.put('/bot/cache/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { answer } = req.body;
+            
+            if (!answer) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({ error: 'La respuesta es requerida' }));
+            }
+
+            const { error } = await supabase
+                .from('semantic_cache')
+                .update({ answer })
+                .eq('id', id);
+
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+        } catch (e) {
+            console.error('[Dashboard] Error al actualizar caché:', e);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: e.message }));
+        }
+    });
+
+    // Eliminar entrada de la memoria
+    adapterProvider.server.delete('/bot/cache/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            
+            // Caso especial: Limpiar toda la memoria
+            if (id === 'all') {
+                const { error } = await supabase
+                    .from('semantic_cache')
+                    .delete()
+                    .neq('id', '00000000-0000-0000-0000-000000000000'); // Borrar todo
+                
+                if (error) throw error;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ success: true, message: 'Memoria limpiada totalmente' }));
+            }
+
+            const { error } = await supabase
+                .from('semantic_cache')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+        } catch (e) {
+            console.error('[Dashboard] Error al eliminar caché:', e);
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: e.message }));
+        }
+    });
+
+
+
+    // --- FIN INTEGRACIÓN DASHBOARD PREMIUM ---
 
     const { handleCtx, httpServer } = await createBot({
         flow: adapterFlow,
@@ -467,7 +1046,7 @@ const main = async () => {
             return res.writeHead(400).end(JSON.stringify({ error: 'Faltan wa_id/telefono o dni' }));
         }
 
-        console.log(`[API] Lead recibido: ${nombre} (${dni}).`);
+        console.log(`[API v1] Petición recibida para ${nombre} (DNI: ${dni}).`);
 
         // 1. Guardar o actualizar registro en Supabase
         await supabase.from('students').upsert({
@@ -476,47 +1055,45 @@ const main = async () => {
             document_id: dni
         });
 
-        // 2. Lógica de "Vía Rápida" (Top 20 del día)
+        // 2. Validar límite diario (50)
         const currentCounter = getLeadsCounter();
-        const user = loadUserData(targetNumber);
-
-        // Para pruebas, si es uno de los primeros 20, forzamos el envío aunque infoEnviada sea true
-        if (currentCounter.count < 20) {
-            const newCount = incrementLeadsCounter();
-            console.log(`[API] Lead #${newCount} del día. Envío INMEDIATO (Vía Rápida) para ${targetNumber}`);
-
-            try {
-                // Usamos la valla de seguridad de infoEnviada solo para el contador real, 
-                // pero aquí ejecutamos para asegurar que el usuario vea el resultado
-                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, adapterProvider);
-                saveUser(targetNumber, { infoEnviada: true });
-                return res.end('Lead procesado vía rápida (Inmediato).');
-            } catch (error) {
-                console.error(`[API] Error en envío inmediato:`, error);
-                // Si falla el inmediato, el fallback de 5 min se encargará (mas abajo)
-            }
+        if (currentCounter.count >= 50) {
+            console.log(`[API v1] ❌ Límite diario de 50 alcanzado.`);
+            return res.writeHead(403).end('Limite diario alcanzado');
         }
 
-        // 3. Fallback: Espera de 5 minutos si ya pasó los 20 o ya se le envió algo
-        console.log(`[API] Iniciando espera de 5 min para ${dni}.`);
-        if (pendingTimers.has(dni)) clearTimeout(pendingTimers.get(dni));
+        // 3. Incrementar contador y añadir a cola
+        incrementLeadsCounter(50);
+        apiQueue.push({ targetNumber, nombre, facultad, programa });
+        processApiQueue(adapterProvider);
 
-        const timer = setTimeout(async () => {
-            console.log(`[API] Tiempo cumplido para ${dni}. Verificando envío...`);
+        return res.end('Lead encolado para procesamiento.');
+    }));
 
-            // Cargar datos actuales del usuario para ver si ya se le envió
-            const user = loadUserData(targetNumber);
-            if (!user.infoEnviada) {
-                console.log(`[API] Disparando envío proactivo para ${targetNumber}`);
-                await procesarEnvioMensaje(targetNumber, nombre, facultad, programa, adapterProvider);
-                saveUser(targetNumber, { infoEnviada: true });
-            }
-            pendingTimers.delete(dni);
-        }, 5 * 60 * 1000); // 5 minutos
+    /**
+     * NUEVO ENDPOINT: /api/enviar-mensaje
+     * Recibe peticiones del formulario PHP y encola con retardo.
+     */
+    adapterProvider.server.post('/api/enviar-mensaje', handleCtx(async (bot, req, res) => {
+        const { numero, mensaje, facultad, programa } = req.body;
+        const nombre = mensaje; // El PHP envía el nombre en el campo 'mensaje'
+        const targetNumber = numero.includes('@') ? numero : `${numero}@s.whatsapp.net`;
 
-        pendingTimers.set(dni, timer);
+        console.log(`[API New] Petición recibida para ${nombre} (${targetNumber})`);
 
-        return res.end('Lead registrado, en espera de interacción o 5 min.');
+        // Validar límite diario (50)
+        const currentCounter = getLeadsCounter();
+        if (currentCounter.count >= 50) {
+            console.log(`[API New] ❌ Límite diario de 50 alcanzado.`);
+            return res.writeHead(403).end('Limite diario alcanzado');
+        }
+
+        // Incrementar contador y añadir a la cola
+        incrementLeadsCounter(50);
+        apiQueue.push({ targetNumber, nombre, facultad, programa });
+        processApiQueue(adapterProvider);
+
+        return res.end('Recibido y encolado');
     }));
 
     try {

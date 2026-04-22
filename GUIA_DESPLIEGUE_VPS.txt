@@ -1,0 +1,106 @@
+====================================================================
+      GUÍA DE DESPLIEGUE EN VPS UBUNTU (PASO A PASO)
+====================================================================
+
+Este documento detalla los pasos para poner en producción tu Bot de WhatsApp 
+y el Dashboard en un VPS con Ubuntu (mínimo 2GB RAM recomendado).
+
+--------------------------------------------------------------------
+1. PREPARACIÓN DEL SERVIDOR
+--------------------------------------------------------------------
+Ejecuta estos comandos en tu terminal SSH:
+
+# Actualizar el sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Instalar PM2 (Gestor de procesos para que el bot no se detenga)
+sudo npm install -g pm2
+
+--------------------------------------------------------------------
+2. SUBIR EL CÓDIGO
+--------------------------------------------------------------------
+Copia las carpetas 'base-js-baileys-memory' y 'dashboard' a tu VPS.
+Puedes usar Git o un cliente SFTP (FileZilla / WinSCP).
+
+--------------------------------------------------------------------
+3. CONFIGURACIÓN DEL BOT (Backend)
+--------------------------------------------------------------------
+cd base-js-baileys-memory
+
+# Instalar dependencias
+npm install
+
+# Crear archivo de variables de entorno
+nano .env
+# Pega tus credenciales de SUPABASE y GROK. Asegúrate de incluir:
+# PUBLIC_URL=http://TU_IP_O_DOMINIO:3000
+
+# Iniciar el bot con PM2
+pm2 start src/app.js --name "whatsapp-bot"
+
+--------------------------------------------------------------------
+4. CONFIGURACIÓN DEL DASHBOARD (Frontend)
+--------------------------------------------------------------------
+cd ../dashboard
+
+# Instalar dependencias
+npm install
+
+# Crear archivo de variables de entorno
+nano .env.local
+# Pega tus credenciales de SUPABASE
+
+# COMPILAR PARA PRODUCCIÓN (Vital para rendimiento y RAM)
+npm run build
+
+# Iniciar el dashboard con PM2
+pm2 start npm --name "next-dashboard" -- start -- -p 3004
+
+--------------------------------------------------------------------
+5. (OPCIONAL) CONFIGURAR DOMINIO Y SSL (Nginx)
+--------------------------------------------------------------------
+Si quieres usar un dominio (ej: bot.tuempresa.com):
+
+# Instalar Nginx
+sudo apt install nginx -y
+
+# Configurar Proxy
+sudo nano /etc/nginx/sites-available/bot
+# Pega este bloque:
+server {
+    server_name TU_DOMINIO.com;
+
+    location / {
+        proxy_pass http://localhost:3004; # Dashboard
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+
+# Activar configuración
+sudo ln -s /etc/nginx/sites-available/bot /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+
+# Instalar SSL (HTTPS) con Certbot
+sudo apt install python3-certbot-nginx -y
+sudo certbot --nginx -d TU_DOMINIO.com
+
+--------------------------------------------------------------------
+6. COMANDOS ÚTILES DE PM2
+--------------------------------------------------------------------
+- Ver estado: pm2 status
+- Ver logs en vivo: pm2 logs
+- Reiniciar todo: pm2 restart all
+- Guardar configuración (para reinicios del VPS): pm2 save && pm2 startup
+
+====================================================================
+¡Listo! Tu sistema ahora corre 24/7 de forma profesional.
+====================================================================
