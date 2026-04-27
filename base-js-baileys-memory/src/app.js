@@ -22,6 +22,7 @@ process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:
 
 const PORT = process.env.PORT ?? 3000
 const USER_DATA_PATH = path.join(process.cwd(), 'user_data.json')
+const pendingTimers = new Map();
 
 // Gestión de persistencia local
 const loadUsers = () => {
@@ -755,11 +756,15 @@ const main = async () => {
     const channel = supabase.channel('dashboard-send')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'sender_type=eq.dashboard' }, async (payload) => {
             const { wa_id, text, media_url } = payload.new;
-            console.log(`[Dashboard] 📩 Reenviando mensaje a ${wa_id}: ${text}`);
+            console.log(`[Dashboard] 📩 Recibida solicitud de envío para ${wa_id}`);
             
-            const target = wa_id.includes('@') ? wa_id : `${wa_id}@s.whatsapp.net`;
-            const cleanWa = wa_id.includes('@') ? wa_id.split('@')[0] : wa_id;
+            // Asegurar formato de número correcto
+            let target = wa_id;
+            if (!target.includes('@')) {
+                target = `${target}@s.whatsapp.net`;
+            }
             
+            const cleanWa = wa_id.split('@')[0];
             _dashboardPendingSends.add(`${cleanWa}:${text || ''}`);
             
             try {
@@ -768,9 +773,9 @@ const main = async () => {
                 } else {
                     await adapterProvider.sendMessage(target, text, {});
                 }
-                console.log(`[Dashboard] ✅ Mensaje enviado a ${wa_id}`);
+                console.log(`[Dashboard] ✅ Mensaje enviado exitosamente a ${target}`);
             } catch (err) {
-                console.error('[Dashboard] ❌ Error al reenviar:', err);
+                console.error(`[Dashboard] ❌ ERROR al enviar a ${target}:`, err);
                 _dashboardPendingSends.delete(`${cleanWa}:${text || ''}`);
             }
         })
