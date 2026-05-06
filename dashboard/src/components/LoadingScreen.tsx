@@ -45,7 +45,7 @@ export function LoadingScreen() {
                     </p>
                     
                     {/* Progress Container */}
-                    <div className="w-64 h-[2px] bg-white/5 rounded-full overflow-hidden relative">
+                    <div className="w-64 h-[2px] bg-background/5 rounded-full overflow-hidden relative">
                         <div 
                             className="absolute top-0 left-0 h-full bg-blue-600 transition-all duration-300 ease-out shadow-[0_0_15px_rgba(37,99,235,0.8)]"
                             style={{ width: `${progress}%` }}

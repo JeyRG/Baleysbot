@@ -213,12 +213,12 @@ export default function DashboardOverview() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight font-outfit">Panel de Control</h2>
-          <p className="text-slate-400 text-sm mt-1">Analítica en tiempo real de tu bot de WhatsApp</p>
+          <h2 className="text-3xl font-black text-foreground tracking-tight font-outfit">Panel de Control</h2>
+          <p className="text-muted-foreground text-sm mt-1">Analítica en tiempo real de tu bot de WhatsApp</p>
         </div>
         <button 
           onClick={() => fetchData()} 
-          className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border rounded-xl text-xs font-bold text-muted-foreground hover:bg-secondary transition-all shadow-sm"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
           Actualizar
@@ -239,14 +239,14 @@ export default function DashboardOverview() {
           </div>
           <div className="space-y-2">
             {urgentConvs.map(conv => (
-              <div key={conv.id} className="flex items-center justify-between bg-white/80 backdrop-blur-sm rounded-2xl px-5 py-3.5 border border-rose-100 hover:shadow-md transition-all group">
+              <div key={conv.id} className="flex items-center justify-between bg-card/80 backdrop-blur-sm rounded-2xl px-5 py-3.5 border border-rose-100 hover:shadow-md transition-all group">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-orange-500/20 shrink-0">
                     {conv.studentName?.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-bold text-sm text-slate-800 truncate">{conv.studentName}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{conv.lastMessage}</p>
+                    <p className="font-bold text-sm text-foreground truncate">{conv.studentName}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{conv.lastMessage}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -267,15 +267,15 @@ export default function DashboardOverview() {
           { label: 'Mensajes Hoy', value: msgToday, icon: '📨', gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-violet-500/20' },
           { label: 'Soporte Activo', value: supportCount, icon: '🚨', gradient: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-500/20' },
         ].map((kpi, idx) => (
-          <div key={idx} className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group">
+          <div key={idx} className="glass-panel rounded-3xl p-5 premium-card-hover hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group">
             <div className="flex items-center justify-between mb-3">
               <div className={`bg-gradient-to-br ${kpi.gradient} w-11 h-11 rounded-2xl flex items-center justify-center text-lg shadow-lg ${kpi.shadow} group-hover:scale-110 transition-transform`}>
                 {kpi.icon}
               </div>
               <span className="text-[9px] font-black text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg uppercase tracking-wider border border-emerald-100">Live</span>
             </div>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{kpi.label}</p>
-            <h3 className="text-3xl font-black text-slate-900 mt-1 tabular-nums">{loading ? '—' : kpi.value}</h3>
+            <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{kpi.label}</p>
+            <h3 className="text-3xl font-black text-foreground mt-1 tabular-nums">{loading ? '—' : kpi.value}</h3>
           </div>
         ))}
       </div>
@@ -284,11 +284,11 @@ export default function DashboardOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Gráfico 1: Mensajes por día */}
-        <div className="lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+        <div className="lg:col-span-2 glass-panel rounded-3xl p-6 premium-card-hover">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Volumen de Mensajes</h3>
-              <p className="text-[10px] text-slate-400 font-medium mt-0.5">Últimos 7 días</p>
+              <h3 className="font-bold text-foreground text-sm">Volumen de Mensajes</h3>
+              <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Últimos 7 días</p>
             </div>
             <div className="flex items-center gap-4 text-[10px] font-bold">
               <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Usuarios</span>
@@ -325,16 +325,16 @@ export default function DashboardOverview() {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[220px] flex items-center justify-center text-slate-300 text-sm font-medium">
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm font-medium">
               Esperando datos de mensajes...
             </div>
           )}
         </div>
 
         {/* Gráfico 2: Distribución por tipo */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-          <h3 className="font-bold text-slate-900 text-sm mb-1">Distribución</h3>
-          <p className="text-[10px] text-slate-400 font-medium mb-4">Quién responde más</p>
+        <div className="glass-panel rounded-3xl p-6 premium-card-hover">
+          <h3 className="font-bold text-foreground text-sm mb-1">Distribución</h3>
+          <p className="text-[10px] text-muted-foreground font-medium mb-4">Quién responde más</p>
           {senderDistribution.some(d => d.value > 0) ? (
             <>
               <ResponsiveContainer width="100%" height={160}>
@@ -363,15 +363,15 @@ export default function DashboardOverview() {
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-xs font-semibold text-slate-600">{item.name}</span>
+                      <span className="text-xs font-semibold text-muted-foreground">{item.name}</span>
                     </div>
-                    <span className="text-xs font-black text-slate-900 tabular-nums">{item.value}</span>
+                    <span className="text-xs font-black text-foreground tabular-nums">{item.value}</span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div className="h-[220px] flex items-center justify-center text-slate-300 text-sm font-medium">
+            <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm font-medium">
               Sin datos aún
             </div>
           )}
@@ -382,10 +382,10 @@ export default function DashboardOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Gráfico 3: Horario pico */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+        <div className="glass-panel rounded-3xl p-6 premium-card-hover">
           <div className="mb-4">
-            <h3 className="font-bold text-slate-900 text-sm">Horas Pico</h3>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">Actividad de mensajes por hora (hoy)</p>
+            <h3 className="font-bold text-foreground text-sm">Horas Pico</h3>
+            <p className="text-[10px] text-muted-foreground font-medium mt-0.5">Actividad de mensajes por hora (hoy)</p>
           </div>
           {hourlyActivity.some(h => h.mensajes > 0) ? (
             <ResponsiveContainer width="100%" height={180}>
@@ -406,16 +406,16 @@ export default function DashboardOverview() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[180px] flex items-center justify-center text-slate-300 text-sm font-medium">
+            <div className="h-[180px] flex items-center justify-center text-muted-foreground text-sm font-medium">
               Sin actividad hoy
             </div>
           )}
         </div>
 
         {/* Actividad Reciente */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-5 border-b border-slate-50 bg-slate-50/50">
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+        <div className="glass-panel rounded-3xl premium-card-hover overflow-hidden">
+          <div className="p-5 border-b border-border bg-secondary/50">
+            <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
               <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
               Actividad Reciente
             </h3>
@@ -424,18 +424,18 @@ export default function DashboardOverview() {
             {loading ? (
               Array(4).fill(0).map((_, i) => (
                 <div key={i} className="px-5 py-3.5 animate-pulse flex items-center gap-3">
-                  <div className="w-8 h-8 bg-slate-100 rounded-xl" />
+                  <div className="w-8 h-8 bg-border rounded-xl" />
                   <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-slate-100 rounded w-3/4" />
-                    <div className="h-2 bg-slate-50 rounded w-1/2" />
+                    <div className="h-3 bg-border rounded w-3/4" />
+                    <div className="h-2 bg-secondary rounded w-1/2" />
                   </div>
                 </div>
               ))
             ) : recentActivity.length === 0 ? (
-              <div className="p-8 text-center text-slate-300 text-sm">Sin actividad reciente</div>
+              <div className="p-8 text-center text-muted-foreground text-sm">Sin actividad reciente</div>
             ) : (
               recentActivity.map((msg, i) => (
-                <div key={i} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50/50 transition-colors">
+                <div key={i} className="px-5 py-3 flex items-center gap-3 hover:bg-secondary/50 transition-colors">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white text-[10px] font-black shrink-0 ${
                     msg.sender_type === 'bot' ? 'bg-blue-500' : 
                     msg.sender_type === 'user' ? 'bg-emerald-500' : 
@@ -444,8 +444,8 @@ export default function DashboardOverview() {
                     {msg.sender_type === 'bot' ? 'IA' : msg.sender_type === 'user' ? 'US' : 'TÚ'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-700 truncate font-medium">{msg.text || 'Multimedia'}</p>
-                    <p className="text-[10px] text-slate-400">{timeAgo(msg.created_at)}</p>
+                    <p className="text-xs text-foreground truncate font-medium">{msg.text || 'Multimedia'}</p>
+                    <p className="text-[10px] text-muted-foreground">{timeAgo(msg.created_at)}</p>
                   </div>
                 </div>
               ))

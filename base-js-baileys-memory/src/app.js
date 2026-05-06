@@ -185,13 +185,13 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/J8tE8u8pFAMzS7tQJ9mD8o';
 
         // 2. Información base
-        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-1234567'; let cci = '009-100-0000001234567-89'; let costo = 'S/ 2500';
+        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-3747336'; let cci = '009-100-000003747336-90'; let costo = 'S/ 2500';
         let reqDoc = 'Copia del Grado Académico de Bachiller.';
         let matricula = 'S/ 100';
 
         if (p.includes('doctorado')) {
-            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-9876543'; cci = '009-100-0000009876543-21'; costo = 'S/ 2500';
-            reqDoc = 'Copia del Grado Académico de Maestro o constancia de egresado.';
+            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-3747336'; cci = '009-100-000003747336-90'; costo = 'S/ 2500';
+            reqDoc = 'Copia del Grado Académico de Maestro, Constancia de egresado o Certificado de Estudios. ';
             matricula = 'S/ 100';
         } else if (p.includes('especialidad')) {
             precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
@@ -213,10 +213,11 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
 
 📅 *Fechas Clave:*
 🖋 Inscripciones: Hasta el 10 de Agosto del 2026
+📍 Exámen de Admisión: 19 y 20 de Agosto del 2026
 🎒 Inicio Clases: 1 Setiembre del 2026
 
 📍 *Modalidad:*
-Semipresencial (80% virtual / 20% presencial).
+Presencial con Herramientas Tecnológicas (80% virtual / 20% presencial).
 Asistencia 1 vez al mes (Clase híbrida).
 🎓 El grado sale con modalidad *PRESENCIAL*.
 
@@ -227,12 +228,12 @@ ${groupLink}`;
         await delay(2000);
 
         const requirementsText = `📝 *REQUISITOS DE INSCRIPCIÓN:*
-1️⃣ Copia legible del DNI o Pasaporte.
-2️⃣ Foto actual a color (fondo blanco).
-3️⃣ Hoja de Vida, Ficha de Inscripción y DJ firmados.
+1️⃣ FFicha de Postulante y Hoja de Vida del Postulante llenados de manera virtual a través de nuestro sistema.
+2️⃣ Copia legible del DNI o Pasaporte.
+3️⃣ Foto actual a color (opcional).
 4️⃣ ${reqDoc}
 
-*Nota:* Los grados del extranjero deben estar en SUNEDU.`;
+*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.`;
 
         await provider.sendMessage(numero, requirementsText, {});
         await delay(3000);
@@ -757,16 +758,16 @@ const main = async () => {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'sender_type=eq.dashboard' }, async (payload) => {
             const { wa_id, text, media_url } = payload.new;
             console.log(`[Dashboard] 📩 Recibida solicitud de envío para ${wa_id}`);
-            
+
             // Asegurar formato de número correcto
             let target = wa_id;
             if (!target.includes('@')) {
                 target = `${target}@s.whatsapp.net`;
             }
-            
+
             const cleanWa = wa_id.split('@')[0];
             _dashboardPendingSends.add(`${cleanWa}:${text || ''}`);
-            
+
             try {
                 if (media_url) {
                     await adapterProvider.sendMessage(target, text || "Archivo adjunto", { media: media_url });

@@ -51,22 +51,22 @@ export default function ConnectionStatus() {
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-4xl mx-auto">
       <div className="flex flex-col space-y-1">
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight font-outfit">Conexión de WhatsApp</h2>
+        <h2 className="text-3xl font-black text-foreground tracking-tight font-outfit">Conexión de WhatsApp</h2>
         <p className="text-slate-500 text-sm">Gestiona la vinculación de tu bot con el servicio oficial.</p>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden min-h-[400px] flex flex-col justify-center items-center p-12 text-center">
+      <div className="glass-panel rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-border overflow-hidden min-h-[400px] flex flex-col justify-center items-center p-12 text-center">
         {loading && !status ? (
           <div className="animate-pulse space-y-6 flex flex-col items-center">
-            <div className="w-64 h-64 bg-slate-100 rounded-3xl"></div>
-            <div className="h-4 bg-slate-100 rounded w-48"></div>
+            <div className="w-64 h-64 bg-border rounded-3xl"></div>
+            <div className="h-4 bg-border rounded w-48"></div>
           </div>
         ) : error ? (
           <div className="space-y-4">
             <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6">
                 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
             </div>
-            <h3 className="text-xl font-bold text-slate-900">Bot fuera de línea</h3>
+            <h3 className="text-xl font-bold text-foreground">Bot fuera de línea</h3>
             <p className="text-slate-500 max-w-xs mx-auto">No se pudo contactar con el servidor del bot en el puerto 3000. Asegúrate de que el bot esté encendido.</p>
             <button 
                 onClick={fetchStatus}
@@ -79,17 +79,17 @@ export default function ConnectionStatus() {
           <div className="space-y-6 animate-in zoom-in duration-500">
             <div className="w-24 h-24 bg-emerald-500 rounded-[2rem] flex items-center justify-center text-white mx-auto shadow-2xl shadow-emerald-500/40 relative">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <div className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                <div className="absolute -top-1 -right-1 w-6 h-6 glass-panel rounded-full flex items-center justify-center">
                     <div className="w-3 h-3 bg-emerald-500 rounded-full animate-ping"></div>
                 </div>
             </div>
             <div className="space-y-2">
-                <h3 className="text-2xl font-black text-slate-900">¡Bot Conectado!</h3>
+                <h3 className="text-2xl font-black text-foreground">¡Bot Conectado!</h3>
                 <p className="text-slate-500">El sistema se encuentra activo y respondiendo mensajes.</p>
             </div>
             <div className="pt-8 flex gap-4 justify-center">
-                <div className="px-6 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-widest mb-1">Estado</p>
+                <div className="px-6 py-3 bg-secondary rounded-2xl border border-border">
+                    <p className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mb-1">Estado</p>
                     <p className="font-bold text-emerald-600 text-sm">Online & Listo</p>
                 </div>
             </div>
@@ -97,13 +97,13 @@ export default function ConnectionStatus() {
         ) : status?.waiting_qr ? (
           <div className="space-y-8 animate-in fade-in zoom-in duration-500">
             <div className="space-y-2">
-                <h3 className="text-2xl font-black text-slate-900">Vincular Dispositivo</h3>
+                <h3 className="text-2xl font-black text-foreground">Vincular Dispositivo</h3>
                 <p className="text-slate-500 text-sm">Escanea este código QR con tu aplicación de WhatsApp</p>
             </div>
 
             <div className="relative group max-w-[300px] mx-auto">
                 <div className="absolute -inset-4 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-[3rem] blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                <div className="relative bg-white p-4 rounded-[2.5rem] border border-slate-100 shadow-2xl">
+                <div className="relative glass-panel p-4 rounded-[2.5rem] border border-border shadow-2xl">
                     <img 
                         src={qrUrl} 
                         alt="WhatsApp QR Code" 
@@ -126,7 +126,7 @@ export default function ConnectionStatus() {
             </div>
           </div>
         ) : (
-          <p className="text-slate-400">Determinando estado...</p>
+          <p className="text-muted-foreground">Determinando estado...</p>
         )}
       </div>
     </div>

@@ -34,6 +34,8 @@ cd base-js-baileys-memory
 # Instalar dependencias
 npm install
 
+
+me quede aqui
 # Crear archivo de variables de entorno
 nano .env
 # Pega tus credenciales de SUPABASE y GROK. Asegúrate de incluir:

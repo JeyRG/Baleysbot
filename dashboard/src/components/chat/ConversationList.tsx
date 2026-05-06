@@ -44,16 +44,16 @@ export function ConversationList({ conversations, students, activeId, filterMode
     return (
         <div className="flex-1 overflow-hidden flex flex-col">
             {/* Filter Tabs */}
-            <div className="flex p-2 bg-slate-50 mx-4 my-3 rounded-xl border border-slate-100">
+            <div className="flex p-2 bg-secondary mx-4 my-3 rounded-xl border border-border">
                 <button 
                     onClick={() => onFilterChange('all')}
-                    className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${filterMode === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${filterMode === 'all' ? 'glass-panel text-blue-600 shadow-sm' : 'text-muted-foreground hover:text-muted-foreground'}`}
                 >
                     Todos ({conversations.length})
                 </button>
                 <button 
                     onClick={() => onFilterChange('support')}
-                    className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${filterMode === 'support' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 ${filterMode === 'support' ? 'glass-panel text-rose-600 shadow-sm' : 'text-muted-foreground hover:text-muted-foreground'}`}
                 >
                     Apoyo Humano
                     {supportCount > 0 && (
@@ -67,13 +67,13 @@ export function ConversationList({ conversations, students, activeId, filterMode
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {filteredConversations.length === 0 ? (
                     <div className="p-10 text-center space-y-3">
-                        <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-200">
+                        <div className="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mx-auto mb-4 text-slate-200">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         </div>
-                        <p className="text-slate-400 text-sm font-bold">
+                        <p className="text-muted-foreground text-sm font-bold">
                             {filterMode === 'support' ? 'Sin solicitudes de apoyo' : 'No hay conversaciones'}
                         </p>
-                        <p className="text-slate-300 text-[10px] uppercase font-bold tracking-tighter">
+                        <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-tighter">
                             {filterMode === 'support' ? 'Todas las conversaciones están siendo atendidas por el bot' : 'Esperando mensajes de WhatsApp...'}
                         </p>
                     </div>
@@ -88,7 +88,7 @@ export function ConversationList({ conversations, students, activeId, filterMode
                             <div 
                                 key={conv.id} 
                                 onClick={() => onSelect(conv)}
-                                className={`px-4 py-4 border-b border-gray-50 cursor-pointer transition-all duration-300 hover:bg-white hover:shadow-md relative group ${isActive ? 'bg-white shadow-sm ring-1 ring-blue-500/10' : 'bg-transparent'} ${isHuman && !isActive ? 'bg-amber-50/30' : ''}`}
+                                className={`px-4 py-4 border-b border-gray-50 cursor-pointer transition-all duration-300 hover:glass-panel hover:shadow-md relative group ${isActive ? 'glass-panel shadow-sm ring-1 ring-blue-500/10' : 'bg-transparent'} ${isHuman && !isActive ? 'bg-amber-50/30' : ''}`}
                             >
                                 {isActive && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-600 rounded-r-full shadow-lg shadow-blue-500/50" />}
                                 
@@ -119,7 +119,7 @@ export function ConversationList({ conversations, students, activeId, filterMode
                                         
                                         {/* Último mensaje preview */}
                                         {lastMsg && (
-                                            <p className="text-[11px] text-slate-400 truncate mb-1.5 leading-tight">
+                                            <p className="text-[11px] text-muted-foreground truncate mb-1.5 leading-tight">
                                                 {lastMsg.sender_type === 'bot' && (
                                                     <span className="text-blue-400 font-semibold">Bot: </span>
                                                 )}
@@ -140,12 +140,12 @@ export function ConversationList({ conversations, students, activeId, filterMode
                                                 ) : (
                                                     <div className="flex items-center gap-1">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-400">Bot Activo</span>
+                                                        <span className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground">Bot Activo</span>
                                                     </div>
                                                 )}
                                             </div>
                                             {!conv.wa_id.includes('web') && displayName !== conv.wa_id.split('@')[0] && (
-                                                <span className="text-[9px] text-slate-300 font-medium">
+                                                <span className="text-[9px] text-muted-foreground font-medium">
                                                     {conv.wa_id.split('@')[0]}
                                                 </span>
                                             )}

@@ -7,6 +7,8 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 
+import { ThemeProvider } from "@/components/ThemeProvider";
+
 export const metadata: Metadata = {
   title: "Admin Panel | Gestión Híbrida WhatsApp",
   description: "Dashboard premium para la gestión de conversaciones de WhatsApp con IA y soporte multimedia.",
@@ -24,14 +26,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className="scroll-smooth">
+    <html lang="es" className="scroll-smooth" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-slate-50 text-slate-900 overflow-hidden`}
+        className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-background text-foreground overflow-hidden`}
       >
-        <LoadingScreen />
-        <div className="relative min-h-screen flex flex-col">
-          {children}
-        </div>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <LoadingScreen />
+          <div className="relative min-h-screen flex flex-col">
+            {children}
+          </div>
+        </ThemeProvider>
       </body>
     </html>
   );
