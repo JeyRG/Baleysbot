@@ -179,22 +179,22 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         const numero = target;
 
         // 1. Determinar el link del grupo (Misma lógica simple)
-        let groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl?mode=gi_t'; // Default
+        let groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl'; // Default
         const p = programa.toLowerCase();
-        if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/FAMzS7tQJ9mD8oJ7tE8u8p';
-        else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/J8tE8u8pFAMzS7tQJ9mD8o';
+        if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
+        else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
 
         // 2. Información base
-        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-3747336'; let cci = '009-100-000003747336-90'; let costo = 'S/ 2500';
+        let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-3747336'; let cci = '009-100-000003747336-90'; let costo = 'S/ 2100';
         let reqDoc = 'Copia del Grado Académico de Bachiller.';
         let matricula = 'S/ 100';
 
         if (p.includes('doctorado')) {
-            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-3747336'; cci = '009-100-000003747336-90'; costo = 'S/ 2500';
-            reqDoc = 'Copia del Grado Académico de Maestro, Constancia de egresado o Certificado de Estudios. ';
+            precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-3747336'; cci = '009-100-000003747336-90'; costo = 'S/ 2100';
+            reqDoc = 'Copia del Grado Académico de Maestro, Constancia de egresado de la Maestría o Certificado de Estudios de la Maestría. ';
             matricula = 'S/ 100';
         } else if (p.includes('especialidad')) {
-            precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1200';
+            precio = 'S/ 120'; duracion = '2 semestres'; cuenta = '000-1797042'; cci = '009-100-000001797042-97'; costo = 'S/ 1400';
             reqDoc = 'Copia del Título Profesional universitario.';
             matricula = 'S/ 200';
         }
@@ -228,7 +228,7 @@ ${groupLink}`;
         await delay(2000);
 
         const requirementsText = `📝 *REQUISITOS DE INSCRIPCIÓN:*
-1️⃣ FFicha de Postulante y Hoja de Vida del Postulante llenados de manera virtual a través de nuestro sistema.
+1️⃣ Ficha de Postulante y Hoja de Vida del Postulante llenados de manera virtual a través de nuestro sistema.
 2️⃣ Copia legible del DNI o Pasaporte.
 3️⃣ Foto actual a color (opcional).
 4️⃣ ${reqDoc}
