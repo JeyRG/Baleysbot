@@ -155,6 +155,11 @@
                 "nombre": "Maestría en Ingeniería de Sistemas",
                 "descripcion": "Desarrolla competencias avanzadas en la gestión de sistemas complejos, optimización de procesos y liderazgo tecnológico, formando profesionales capaces de innovar y transformar organizaciones.",
                 "brochure": "https://posgrado.unac.edu.pe/brochure/FIIS/MAESTRIA/BROCHURE_MAESTRIA_EN_INGENIERIA_DE_SISTEMAS.pdf"
+            },
+            "4": {
+                "nombre": "Maestría en Inteligencia Artificial y Ciencias de Datos",
+                "descripcion": "Forma líderes con sólidos fundamentos matemáticos, computacionales y estadísticos, capaces de diseñar, gestionar e implementar proyectos de inteligencia artificial.",
+                "brochure": "https://posgrado.unac.edu.pe/brochure/FIIS/MAESTRIA/BROCHURE_MAESTRIA_EN_INTELIGENCIA_ARTIFICIAL_Y_CIENCIAS_DE_DATOS.pdf"
             }
         },
         "doctorados": {
