@@ -23,6 +23,7 @@ export default function DashboardOverview() {
   const [convCount, setConvCount] = useState(0);
   const [supportCount, setSupportCount] = useState(0);
   const [msgToday, setMsgToday] = useState(0);
+  const [resolvedToday, setResolvedToday] = useState(0);
   
   // Charts
   const [dailyMessages, setDailyMessages] = useState<any[]>([]);
@@ -68,6 +69,15 @@ export default function DashboardOverview() {
         .select('*', { count: 'exact', head: true })
         .gte('created_at', todayStart.toISOString());
       setMsgToday(todayCount || 0);
+
+      // Consultas resueltas hoy
+      const { count: resolvedCount } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', todayStart.toISOString())
+        .eq('sender_type', 'dashboard')
+        .ilike('text', '%tu consulta ha sido resuelta%');
+      setResolvedToday(resolvedCount || 0);
 
       // === GRÁFICO 1: Mensajes por día (últimos 7 días) ===
       const sevenDaysAgo = new Date();
@@ -149,7 +159,8 @@ export default function DashboardOverview() {
         .from('conversations')
         .select('id, wa_id, updated_at')
         .eq('status', 'human_active')
-        .order('updated_at', { ascending: false });
+        .order('updated_at', { ascending: false })
+        .limit(10);
 
       if (urgentData && urgentData.length > 0) {
         // Obtener nombres de estudiantes
@@ -260,12 +271,13 @@ export default function DashboardOverview() {
       )}
 
       {/* ===== KPI CARDS ===== */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-5">
         {[
           { label: 'Estudiantes', value: studentCount, icon: '👥', gradient: 'from-emerald-500 to-teal-600', shadow: 'shadow-emerald-500/20' },
           { label: 'Conversaciones', value: convCount, icon: '💬', gradient: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20' },
           { label: 'Mensajes Hoy', value: msgToday, icon: '📨', gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-violet-500/20' },
           { label: 'Soporte Activo', value: supportCount, icon: '🚨', gradient: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-500/20' },
+          { label: 'Resueltas Hoy', value: resolvedToday, icon: '✅', gradient: 'from-amber-400 to-orange-500', shadow: 'shadow-orange-500/20' },
         ].map((kpi, idx) => (
           <div key={idx} className="glass-panel rounded-3xl p-5 premium-card-hover hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group">
             <div className="flex items-center justify-between mb-3">
