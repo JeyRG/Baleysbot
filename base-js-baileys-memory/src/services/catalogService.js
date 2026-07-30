@@ -1,7 +1,7 @@
-import fs from 'fs'
-import path from 'path'
+import { supabaseData as supabase } from './supabaseClient.js'
 
-const PROGRAMAS_PATH = path.join(process.cwd(), 'programas.json')
+let cachedCatalog = null;
+let isFetching = false;
 
 const normalizeText = (text) => {
     if (!text) return ""
@@ -12,16 +12,82 @@ const normalizeText = (text) => {
 }
 
 /**
- * Carga el catálogo de programas desde el archivo JSON.
+ * Descarga los datos de Supabase y construye el catálogo en memoria.
+ */
+export const initCatalog = async () => {
+    if (isFetching) return;
+    isFetching = true;
+    try {
+        console.log('[Catalog] Fetching data from Supabase...');
+        const { data: unidades, error: errU } = await supabase.from('unidades').select('*');
+        const { data: tipos, error: errT } = await supabase.from('tipos_programas').select('*');
+        const { data: programas, error: errP } = await supabase.from('programas').select('*');
+
+        if (errU || errT || errP) {
+            console.error('[Catalog] Error fetching from Supabase:', errU || errT || errP);
+            isFetching = false;
+            return;
+        }
+
+        const newCatalog = {};
+        
+        // Mapear tipos de programa por ID
+        const tiposMap = {};
+        tipos.forEach(t => {
+            const nombre = t.nombre_tipoprograma.toLowerCase();
+            let cat = 'otros';
+            if (nombre.includes('maest')) cat = 'maestrias';
+            else if (nombre.includes('doctorado')) cat = 'doctorados';
+            else if (nombre.includes('especial')) cat = 'especialidades';
+            tiposMap[t.id_tipoprograma] = cat;
+        });
+
+        // Crear la estructura de facultades
+        unidades.forEach(u => {
+            newCatalog[u.id_unidad] = {
+                nombre: u.nombre_unidad,
+                maestrias: {},
+                doctorados: {},
+                especialidades: {}
+            };
+        });
+
+        // Poblar programas
+        programas.forEach(p => {
+            if (p.id_unidad && newCatalog[p.id_unidad]) {
+                const cat = tiposMap[p.id_tipoprograma] || 'maestrias';
+                if (newCatalog[p.id_unidad][cat]) {
+                    newCatalog[p.id_unidad][cat][p.id_programa] = {
+                        id: p.id_programa,
+                        nombre: p.nombre_programa,
+                        descripcion: p.descripcion,
+                        link_ws: p.link_ws,
+                        perfiles_programa: p.perfiles_programa,
+                        malla_curricular: p.malla_curricular
+                    };
+                }
+            }
+        });
+
+        cachedCatalog = newCatalog;
+        console.log('[Catalog] Supabase data loaded into memory cache.');
+    } catch (error) {
+        console.error('[Catalog] Exception in initCatalog:', error);
+    }
+    isFetching = false;
+}
+
+// Iniciar actualización cada hora (3600000 ms)
+setInterval(initCatalog, 3600000);
+
+/**
+ * Devuelve el catálogo cacheado.
  */
 export const getCatalog = () => {
-    try {
-        const data = fs.readFileSync(PROGRAMAS_PATH, 'utf8')
-        return JSON.parse(data)
-    } catch (error) {
-        console.error('[Catalog] Error al cargar programas.json:', error)
-        return null
+    if (!cachedCatalog) {
+        console.warn('[Catalog] Warning: Catalog accessed before being initialized.');
     }
+    return cachedCatalog;
 }
 
 /**

@@ -27,6 +27,7 @@ export function MessageList({ conversation, students }: MessageListProps) {
     const [showContactInfo, setShowContactInfo] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
 
     // Infinite scroll state
     const [hasMore, setHasMore] = useState(true);
@@ -205,10 +206,7 @@ export function MessageList({ conversation, students }: MessageListProps) {
     };
 
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    const processFile = async (file: File) => {
         setUploading(true);
         try {
             const fileExt = file.name.split('.').pop();
@@ -239,6 +237,37 @@ export function MessageList({ conversation, students }: MessageListProps) {
         }
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        await processFile(file);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        
+        // Validar que sea imagen o pdf
+        if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+            alert('Solo se permiten imágenes o PDFs');
+            return;
+        }
+
+        await processFile(file);
+    };
+
     // Date separator helpers
     const formatDateSeparator = (dateStr: string): string => {
         const date = new Date(dateStr);
@@ -259,7 +288,24 @@ export function MessageList({ conversation, students }: MessageListProps) {
     };
 
     return (
-        <div className="flex flex-col h-full relative">
+        <div 
+            className="flex flex-col h-full relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {/* Drag Overlay */}
+            {isDragging && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm border-2 border-dashed border-primary rounded-xl">
+                    <div className="text-center animate-in zoom-in duration-200 pointer-events-none">
+                        <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 text-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                        </div>
+                        <h3 className="text-xl font-bold text-foreground">Suelta tu archivo aquí</h3>
+                        <p className="text-sm text-muted-foreground mt-2">Imágenes o PDFs serán subidos automáticamente</p>
+                    </div>
+                </div>
+            )}
             {/* Header */}
             <div className="px-6 py-4 bg-card/80 backdrop-blur-md border-b border-border flex justify-between items-center z-20 sticky top-0">
                 <div className="flex items-center gap-3">

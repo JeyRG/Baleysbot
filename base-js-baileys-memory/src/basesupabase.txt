@@ -1,0 +1,428 @@
+## Table `roles`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_rol` | `varchar` | Primary |
+| `nombre_rol` | `varchar` |  |
+
+## Table `usuarios`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_usuario` | `varchar` | Primary |
+| `id_rol` | `varchar` |  Nullable |
+| `correo` | `varchar` |  Unique |
+| `password` | `varchar` |  |
+| `estado` | `int4` |  Nullable |
+
+## Table `personas`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_persona` | `varchar` | Primary |
+| `id_usuario` | `varchar` |  Nullable Unique |
+| `dni` | `varchar` |  Unique |
+| `nombres` | `varchar` |  |
+| `apellidos` | `varchar` |  |
+| `fecha_nacimiento` | `date` |  Nullable |
+
+## Table `persona_telefonos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_telefono` | `varchar` | Primary |
+| `id_persona` | `varchar` |  Nullable |
+| `numero` | `varchar` |  Nullable |
+| `tipo` | `varchar` |  Nullable |
+
+## Table `unidades`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_unidad` | `varchar` | Primary |
+| `nombre_unidad` | `varchar` |  |
+| `director_unidad` | `varchar` |  Nullable |
+| `acronimo_facultad` | `varchar` |  Nullable |
+| `link_recursos` | `varchar` |  Nullable |
+| `correo_unidad` | `text` |  Nullable |
+| `telefono_unidad` | `varchar` |  Nullable |
+
+## Table `personal_unidades`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_personalunidad` | `varchar` | Primary |
+| `id_usuario` | `varchar` |  Nullable |
+| `id_unidad` | `varchar` |  Nullable |
+| `fecha_asignacion` | `timestamp` |  Nullable |
+
+## Table `tipos_programas`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_tipoprograma` | `varchar` | Primary |
+| `nombre_tipoprograma` | `varchar` |  Nullable |
+| `costos` | `text` |  Nullable |
+| `requisitos` | `text` |  Nullable |
+| `numero_cuenta` | `varchar` |  Nullable |
+| `duracion_programa` | `varchar` |  Nullable |
+| `creditos_programa` | `varchar` |  Nullable |
+| `costo_per_ciclo` | `varchar` |  Nullable |
+
+## Table `programas`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_programa` | `varchar` | Primary |
+| `id_unidad` | `varchar` |  Nullable |
+| `id_tipoprograma` | `varchar` |  Nullable |
+| `nombre_programa` | `varchar` |  |
+| `descripcion` | `text` |  Nullable |
+| `link_ws` | `varchar` |  Nullable |
+| `perfiles_programa` | `json` |  Nullable |
+| `malla_curricular` | `json` |  Nullable |
+
+## Table `inscripciones`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_inscrito` | `varchar` | Primary |
+| `id_persona` | `varchar` |  Nullable |
+| `id_programa` | `varchar` |  Nullable |
+| `fecha_registro` | `timestamp` |  Nullable |
+| `medio_conocimiento` | `varchar` |  Nullable |
+| `notificado_ws` | `bool` |  Nullable |
+| `notificado_email` | `bool` |  Nullable |
+
+## Table `estados_seguimiento`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_estadoseguimiento` | `varchar` | Primary |
+| `nombre_estado` | `varchar` |  Nullable |
+
+## Table `postulantes`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_postulante` | `varchar` | Primary |
+| `id_inscrito` | `varchar` |  Nullable Unique |
+| `id_estadoseguimiento` | `varchar` |  Nullable |
+| `carpeta_postulante` | `varchar` |  Nullable |
+| `mensaje_estado` | `text` |  Nullable |
+| `fecha_registro` | `timestamp` |  Nullable |
+| `expediente_json` | `json` |  Nullable |
+| `ultima_actualizacion` | `timestamp` |  Nullable |
+| `revision_ai` | `json` |  Nullable |
+| `nota_admin` | `text` |  Nullable |
+
+## Table `postulantes_recursos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_recurso` | `varchar` | Primary |
+| `id_postulante` | `varchar` |  Nullable |
+| `nombre_archivo` | `varchar` |  Nullable |
+| `url_archivo` | `varchar` |  Nullable |
+| `tipo_documento` | `varchar` |  Nullable |
+
+## Table `cursos`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_curso` | `varchar` | Primary |
+| `nombre_curso` | `varchar` |  |
+| `estado` | `int4` |  Nullable |
+
+## Table `sesiones`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_sesion` | `varchar` | Primary |
+| `id_curso` | `varchar` |  Nullable |
+| `nombre_sesion` | `varchar` |  Nullable |
+| `url_video` | `varchar` |  Nullable |
+| `orden` | `int4` |  Nullable |
+
+## Table `materiales`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_material` | `varchar` | Primary |
+| `id_sesion` | `varchar` |  Nullable |
+| `nombre_material` | `varchar` |  Nullable |
+| `tipo_archivo` | `varchar` |  Nullable |
+| `url_descarga` | `varchar` |  Nullable |
+
+## Table `password_resets`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_reset` | `int4` | Primary |
+| `id_usuario` | `varchar` |  |
+| `token` | `varchar` |  Unique |
+| `fecha_creacion` | `timestamp` |  Nullable |
+| `fecha_expiracion` | `timestamp` |  |
+| `usado` | `bool` |  Nullable |
+
+## Table `ubigeo`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_ubigeo` | `varchar` | Primary |
+| `departamento` | `varchar` |  |
+| `provincia` | `varchar` |  |
+| `distrito` | `varchar` |  |
+
+## Table `pais`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_pais` | `varchar` | Primary |
+| `nombre_pais` | `varchar` |  |
+
+## Table `nacionalidad`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_nacionalidad` | `varchar` | Primary |
+| `nombre_nacionalidad` | `varchar` |  |
+
+## Table `etiquetas`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_etiqueta` | `int4` | Primary |
+| `nombre` | `varchar` |  Unique |
+| `color` | `varchar` |  |
+| `descripcion` | `varchar` |  Nullable |
+
+## Table `personas_etiquetas`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_persona` | `varchar` | Primary |
+| `id_etiqueta` | `int4` | Primary |
+
+## Table `tipos_discapacidad`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id_discapacidad` | `varchar` | Primary |
+| `nombre_discapacidad` | `varchar` |  |
+
+## Table `documentos_embeddings`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int4` | Primary |
+| `contenido` | `text` |  |
+| `metadata` | `jsonb` |  Nullable |
+| `embedding` | `vector` |  Nullable |
+| `fecha_creacion` | `timestamp` |  Nullable |
+
+## Table `chatbot_cache`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `query_key` | `text` |  Unique |
+| `response` | `text` |  |
+| `created_at` | `timestamptz` |  Nullable |
+| `updated_at` | `timestamptz` |  Nullable |
+
+## Table `chatbot_logs`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `dni` | `varchar` |  Nullable |
+| `user_query` | `text` |  |
+| `bot_response` | `text` |  |
+| `source` | `varchar` |  |
+| `is_cached` | `bool` |  Nullable |
+| `feedback_rating` | `int4` |  Nullable |
+| `feedback_comment` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+
+## RLS Policies
+
+### `password_resets`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_INSERT_PasswordReset` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_PasswordReset` | SELECT | anon | PERMISSIVE | `true` | — |
+| `Policy_UPDATE_PasswordReset` | UPDATE | anon | PERMISSIVE | `true` | `true` |
+
+### `chatbot_cache`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Permitir inserción a usuarios autenticados` | INSERT | public | PERMISSIVE | — | `true` |
+| `Permitir lectura pública de caché` | SELECT | public | PERMISSIVE | `true` | — |
+
+### `chatbot_logs`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Lectura de logs solo para administradores` | SELECT | public | PERMISSIVE | `true` | — |
+| `Permitir inserción de logs pública` | INSERT | public | PERMISSIVE | — | `true` |
+
+### `personas_etiquetas`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_ALL_PersonaEtiquetas` | ALL | anon | PERMISSIVE | `true` | `true` |
+
+### `tipos_discapacidad`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_SELECT_TipoDiscapacidad` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `usuarios`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `DELETE_Policy_Usuarios` | DELETE | anon | PERMISSIVE | `true` | — |
+| `Policy_INSERT_Usuarios` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_Usuarios` | SELECT | anon | PERMISSIVE | `true` | — |
+| `Policy_UPDATE_Usuarios` | UPDATE | anon | PERMISSIVE | `true` | `true` |
+
+### `personas`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_INSERT_Personas` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_Personas` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `persona_telefonos`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_INSERT_PersonaTelefonos` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_PersonaTelefonos` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `personal_unidades`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `ALL_Policy_PersonalUnidades` | ALL | anon | PERMISSIVE | `true` | `true` |
+
+### `unidades`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_Unidades` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `inscripciones`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_INSERT_Inscripciones` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_Inscripciones` | SELECT | anon | PERMISSIVE | `true` | — |
+| `Policy_UPDATE_Inscripciones` | UPDATE | anon | PERMISSIVE | `true` | `true` |
+
+### `programas`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_Programas` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `tipos_programas`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_TiposProgramas` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `estados_seguimiento`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_INSERT_EstadosSeguimiento` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_EstadosSeguimiento` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `ubigeo`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_SELECT_Ubigeo` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `postulantes`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_INSERT_Postulantes` | INSERT | anon | PERMISSIVE | — | `true` |
+| `Policy_SELECT_Postulantes` | SELECT | anon | PERMISSIVE | `true` | — |
+| `Policy_UPDATE_Postulantes` | UPDATE | anon | PERMISSIVE | `true` | `true` |
+
+### `pais`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_SELECT_Pais` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `nacionalidad`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_SELECT_Nacionalidad` | SELECT | anon | PERMISSIVE | `true` | — |
+
+### `etiquetas`
+
+| Policy | Command | Roles | Action | USING | WITH CHECK |
+|--------|---------|-------|--------|-------|------------|
+| `Policy_ALL_Etiquetas` | ALL | anon | PERMISSIVE | `true` | `true` |
+| `Policy_SELECT_Etiquetas` | SELECT | anon | PERMISSIVE | `true` | — |
+

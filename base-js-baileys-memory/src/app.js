@@ -12,7 +12,8 @@ import { getGrokCompletion as originalGetGrokCompletion } from './grokClient.js'
 // Servicios
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
-import { findProgram, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy } from './services/catalogService.js'
+import { checkInscriptionByDni } from './services/inscriptionService.js'
+import { initCatalog, findProgram, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy } from './services/catalogService.js'
 import { getRAGContext } from './services/knowledgeService.js'
 
 // Handlers globales
@@ -330,10 +331,11 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
         let user = loadUserData(userId);
         const bodyLower = body.toLowerCase();
+        const cleanBody = bodyLower.replace(/[.,!?]/g, '').trim();
         const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
         const s = await state.getMyState() || {};
-        const isAffirmative = ['si', 'yes', 'claro', 'por supuesto', 'afirmativo', 'simón', 'dale'].includes(bodyLower);
+        const isAffirmative = ['si', 'sí', 'yes', 'claro', 'por supuesto', 'afirmativo', 'simón', 'dale', 'si porfavor', 'si por favor', 'sí por favor', 'si porfa', 'sí porfa', 'si quiero'].includes(cleanBody);
 
         // 1. Manejo de Agradecimientos
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
@@ -535,9 +537,33 @@ const processApiQueue = async (provider) => {
     isProcessingQueue = false;
 };
 
+const estadoExpedienteFlow = addKeyword(['dni', 'expediente', 'estado', 'inscrito', 'inscripcion'])
+    .addAnswer('Por favor, indícame tu número de DNI para consultar el estado de tu inscripción y expediente.', { capture: true }, async (ctx, { flowDynamic, fallBack }) => {
+        const dni = ctx.body.trim();
+        // Validación básica de DNI (8 a 12 dígitos)
+        if (!/^\d{8,12}$/.test(dni)) {
+            return fallBack('El DNI ingresado no parece válido. Por favor, ingresa solo números válidos.');
+        }
+
+        const result = await checkInscriptionByDni(dni);
+
+        if (result.error) {
+            await flowDynamic(result.error);
+        } else {
+            await flowDynamic([
+                `Hola *${result.nombres} ${result.apellidos}*, hemos encontrado tu información.`,
+                `🎓 *Programa:* ${result.programa}\n` +
+                `📄 *Estado de tu expediente:* ${result.mensajeExpediente}`
+            ]);
+        }
+    });
+
 const main = async () => {
-    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowVerificacion, mediaFlow])
-    const adapterProvider = createProvider(Provider, { version: [2, 3000, 1035824857] });
+    console.log('[Bot] Inicializando catálogo desde Supabase...');
+    await initCatalog();
+
+    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowVerificacion, estadoExpedienteFlow, mediaFlow])
+    const adapterProvider = createProvider(Provider);
     const adapterDB = new Database();
 
     // --- ESCUCHAR EVENTOS DEL PROVIDER ---
