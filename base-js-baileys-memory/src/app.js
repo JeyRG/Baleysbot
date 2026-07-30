@@ -655,7 +655,10 @@ const main = async () => {
     const _dashboardPendingSends = new Set(); // Evitar duplicados de mensajes del dashboard
 
     adapterProvider.sendMessage = async (number, message, options) => {
-        const result = await originalSendMessage.call(adapterProvider, number, message, options);
+        console.log(`[DEBUG] Intentando enviar mensaje a ${number}:`, message, options);
+        try {
+            const result = await originalSendMessage.call(adapterProvider, number, message, options);
+            console.log(`[DEBUG] Mensaje enviado exitosamente a ${number}`);
 
         // Normalizar el wa_id (quitar @s.whatsapp.net para que coincida con ctx.from)
         const cleanNumber = number.includes('@') ? number.split('@')[0] : number;
@@ -704,6 +707,10 @@ const main = async () => {
         }
 
         return result;
+        } catch (globalErr) {
+            console.error(`[DEBUG] Error catastrofico en originalSendMessage:`, globalErr);
+            throw globalErr;
+        }
     };
 
 
