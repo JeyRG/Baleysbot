@@ -13,7 +13,7 @@ import { getGrokCompletion as originalGetGrokCompletion } from './grokClient.js'
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
 import { checkInscriptionByDni } from './services/inscriptionService.js'
-import { initCatalog, findProgram, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy } from './services/catalogService.js'
+import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy } from './services/catalogService.js'
 import { getRAGContext } from './services/knowledgeService.js'
 
 // Handlers globales
@@ -104,7 +104,7 @@ REGLAS:
 - Usa EXCLUSIVAMENTE la información del "Contexto" si está disponible.
 - Si el "Contexto" menciona costos o fechas, úsalos.
 - NO menciones otras universidades como la Autónoma de Chiriquí. Eres la UNAC del CALLAO, PERÚ.
-- NO envíes PDFs proactivamente. Pregunta primero. 📄
+- Si se detectan programas específicos, indica brevemente que le estás adjuntando la información oficial (brochure).
 - Si no sabes la respuesta o piden humano, responde con el código: [SOLICITUD_ASESOR]
 Contexto: ${context}`
 
@@ -178,18 +178,26 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
             console.error('[Flow] ❌ El objeto provider/bot no es válido o no tiene sendMessage');
         }
         const numero = target;
+        
+        console.log(`[Flow] Buscando datos en Supabase para: "${programa}"...`);
+        const targetProgram = findProgramFuzzy(programa);
 
-        // 1. Determinar el link del grupo (Misma lógica simple)
+        // 1. Determinar el link del grupo
         let groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl'; // Default
-        const p = programa.toLowerCase();
-        if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
-        else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
+        if (targetProgram && targetProgram.link_ws) {
+            groupLink = targetProgram.link_ws;
+        } else {
+            const p = programa.toLowerCase();
+            if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
+            else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
+        }
 
         // 2. Información base
         let precio = 'S/ 200'; let duracion = '3 ciclos'; let cuenta = '000-3747336'; let cci = '009-100-000003747336-90'; let costo = 'S/ 2100';
         let reqDoc = 'Copia del Grado Académico de Bachiller.';
         let matricula = 'S/ 100';
 
+        const p = programa.toLowerCase();
         if (p.includes('doctorado')) {
             precio = 'S/ 250'; duracion = '6 ciclos'; cuenta = '000-3747336'; cci = '009-100-000003747336-90'; costo = 'S/ 2100';
             reqDoc = 'Copia del Grado Académico de Maestro, Constancia de egresado de la Maestría o Certificado de Estudios de la Maestría. ';
@@ -201,11 +209,23 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         }
 
         // 1. Bienvenida
-        const saludo = `🎓 ¡Hola ${nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *${programa}*.`;
+        const saludo = `🎓 ¡Hola ${nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *${targetProgram ? targetProgram.nombre : programa}*.`;
         await provider.sendMessage(numero, saludo, {});
         await delay(3000);
+        
+        // 2. Descripción y Perfil (De Supabase)
+        if (targetProgram) {
+            let detallesExtra = '';
+            if (targetProgram.descripcion) detallesExtra += `\n*📖 Descripción:*\n${targetProgram.descripcion}\n`;
+            if (targetProgram.perfiles_programa) detallesExtra += `\n*🎯 Perfil del Egresado:*\n${targetProgram.perfiles_programa}\n`;
+            
+            if (detallesExtra) {
+                await provider.sendMessage(numero, `✨ *Conoce más de tu programa:*\n${detallesExtra}`, {});
+                await delay(3000);
+            }
+        }
 
-        const infoText = `💥 *Detalles del Programa:*
+        const infoText = `💥 *Detalles de Inscripción:*
 📌 Inscripción: ${precio}
 🏦 Banco: Scotiabank (Cta: ${cuenta} / CCI: ${cci})
 ⏳ Duración: ${duracion}
@@ -227,6 +247,12 @@ ${groupLink}`;
 
         await provider.sendMessage(numero, infoText, {});
         await delay(2000);
+        
+        // Malla Curricular
+        if (targetProgram && targetProgram.malla_curricular) {
+            await provider.sendMessage(numero, `📚 *Malla Curricular:*\n${targetProgram.malla_curricular}`, {});
+            await delay(3000);
+        }
 
         const requirementsText = `📝 *REQUISITOS DE INSCRIPCIÓN:*
 1️⃣ Ficha de Postulante y Hoja de Vida del Postulante llenados de manera virtual a través de nuestro sistema.
@@ -240,22 +266,18 @@ ${groupLink}`;
         await delay(3000);
 
         // 3. Enviar Brochure (Si existe)
-        console.log(`[Flow] Buscando brochure para: "${programa}"...`);
-        const targetProgram = findProgramFuzzy(programa);
-
         if (targetProgram && targetProgram.brochure) {
             console.log(`[Flow] ✅ Brochure encontrado: ${targetProgram.nombre} -> ${targetProgram.brochure}`);
             await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
             await delay(1500);
 
             // Envío robusto compatible con BuilderBot
-            // Envío compatible con BuilderBot (Usamos texto no vacío para evitar error de match)
             await provider.sendMessage(numero, "Brochure Oficial 📄", {
                 media: targetProgram.brochure,
                 fileName: `brochure-${targetProgram.nombre}.pdf`.replace(/\s+/g, '_')
             });
         } else {
-            console.log(`[Flow] ⚠️ No se encontró coincidencia para: "${programa}".`);
+            console.log(`[Flow] ⚠️ No se encontró brochure para: "${programa}".`);
             await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, por favor escríbeme el nombre exacto o solicita un asesor.`, {});
         }
 
@@ -263,52 +285,49 @@ ${groupLink}`;
 }
 
 /**
- * Flujo de Verificación por DNI
+ * Flujo Unificado de Verificación de Expediente e Inscripción
  */
-const flowVerificacion = addKeyword(['verificar', 'inscripción', 'inscripcion', 'verificacion', 'verificar inscripción'])
+const flowExpedienteProcesar = addKeyword(EVENTS.ACTION)
+    .addAction(async (ctx, { state, flowDynamic }) => {
+        const s = await state.getMyState();
+        const dni = s.dni;
+        await flowDynamic('⏳ Consultando tu expediente en nuestra base de datos... un momento.');
+        
+        const result = await checkInscriptionByDni(dni);
+        if (result.error) {
+            await flowDynamic(`❌ ${result.error}`);
+        } else {
+            await flowDynamic([
+                `✅ Hola *${result.nombres} ${result.apellidos}*, hemos encontrado tu información.`,
+                `🎓 *Programa:* ${result.programa}\n` +
+                `📄 *Estado de tu expediente:* ${result.mensajeExpediente}`
+            ]);
+        }
+    });
+
+const flowExpediente = addKeyword([
+    'expediente', 'estado', 'verific', 'inscripc',
+    '^[0-9A-Za-z]{8,12}$'
+], { regex: true })
+    .addAction(async (ctx, { state, gotoFlow }) => {
+        const isDni = /^[0-9A-Za-z]{8,12}$/.test(ctx.body.trim());
+        if (isDni) {
+            await state.update({ dni: ctx.body.trim() });
+            return gotoFlow(flowExpedienteProcesar);
+        }
+    })
     .addAnswer(
-        '🔍 *VERIFICACIÓN DE INSCRIPCIÓN*\n\nPor favor, dime tu número de *DNI* para consultar tu registro:',
+        '🔍 *VERIFICACIÓN DE INSCRIPCIÓN Y EXPEDIENTE*\n\nPor favor, dime tu número de *DNI* para consultar tu registro:',
         { capture: true },
-        async (ctx, { flowDynamic, state, provider, endFlow }) => {
+        async (ctx, { fallBack, state, gotoFlow }) => {
             const dni = ctx.body.trim().replace(/\s+/g, '');
             if (!/^[0-9A-Za-z]{8,15}$/.test(dni)) {
-                return await flowDynamic('❌ DNI no válido. Por favor, escribe solo números y letras sin espacios.');
+                return fallBack('❌ DNI no válido. Por favor, escribe solo números y letras sin espacios.');
             }
-
-            try {
-                await flowDynamic('⏳ Consultando base de datos... un momento.');
-                const url = `${process.env.GOOGLE_SHEET_URL}?dni=${dni}`;
-                const response = await fetch(url);
-                const data = await response.json();
-
-                if (data.encontrado) {
-                    // Cancelar temporizador proactivo si existe
-                    if (pendingTimers.has(dni)) {
-                        console.log(`[Flow] Cancelando envío proactivo para ${dni} por interacción manual.`);
-                        clearTimeout(pendingTimers.get(dni));
-                        pendingTimers.delete(dni);
-                    }
-
-                    const s = await state.getMyState() || {};
-                    const user = loadUserData(ctx.from);
-
-                    // Ya no bloqueamos si infoEnviada es true, siempre enviamos si verifica DNI
-                    await flowDynamic(`✅ ¡Excelente ${data.nombre}! Encontramos tu registro para *${data.programa}*.\nEn breve te enviaremos la información detallada... 🚀`);
-                    await state.update({ infoEnviada: true });
-                    saveUser(ctx.from, { infoEnviada: true });
-
-                    // Disparar envío pesado
-                    await procesarEnvioMensaje(ctx.from, data.nombre, data.facultad, data.programa, provider);
-                    return endFlow();
-                } else {
-                    return await flowDynamic('❌ No pudimos encontrar tu inscripción con ese DNI. Verifica el número o escribe *asesor* para ayudarte.');
-                }
-            } catch (e) {
-                console.error('Error verificación:', e);
-                return await flowDynamic('⚠️ Error temporal en el sistema. Inténtalo más tarde.');
-            }
+            await state.update({ dni: dni });
+            return gotoFlow(flowExpedienteProcesar);
         }
-    )
+    );
 
 const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
     .addAction(async (ctx, { flowDynamic, state, provider, gotoFlow, endFlow }) => {
@@ -368,23 +387,8 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             }
         }
 
-        // 2. Confirmación de Brochure o Asesor (REACCION A "SI")
+        // 2. Confirmación de Asesor (REACCION A "SI")
         if (isAffirmative && body.split(' ').length <= 4) {
-            // Caso A: Confirmación de Brochure
-            if (s.pendingProgram) {
-                const targetProgram = findProgram(s.pendingProgram);
-                if (targetProgram) {
-                    console.log(`[Flow] Enviando brochure confirmado para: ${targetProgram.nombre}`);
-                    await flowDynamic(`✅ ¡Excelente elección! Aquí tienes el brochure oficial de la *${targetProgram.nombre}*. 📄📂`);
-                    await flowDynamic([{
-                        body: `📄 *Brochure:* ${targetProgram.nombre}`,
-                        media: targetProgram.brochure
-                    }]);
-                    await state.update({ pendingProgram: null });
-                    return;
-                }
-            }
-            // Caso B: Confirmación de Asesor
             if (s.pendingAdvisor) {
                 await state.update({ pendingAdvisor: null });
                 return await gotoFlow(solicitudAsesorFlow);
@@ -429,14 +433,14 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         } catch (e) { console.error('[Flow] Error en embedding/cache:', e) }
 
         // 5. RAG Dinámico
-        const programMatch = findProgram(body);
+        const programsMatch = findPrograms(body);
         const facultyMatch = findFaculty(body);
         const categoryMatch = findCategory(body);
         let dynamicContext = "";
 
-        if (programMatch) {
-            dynamicContext = `Programa: ${programMatch.nombre}. Info: ${programMatch.descripcion}. Pregunta si quiere el PDF.`;
-            console.log(`[RAG] Programa detectado: ${programMatch.nombre}`);
+        if (programsMatch && programsMatch.length > 0) {
+            dynamicContext = programsMatch.map(p => `Programa: ${p.nombre}. Info: ${p.descripcion}. Indica que adjuntarás el brochure oficial de este programa.`).join('\n');
+            console.log(`[RAG] Programas detectados: ${programsMatch.map(p => p.nombre).join(', ')}`);
         } else if (facultyMatch) {
             dynamicContext = getContextForFaculty(facultyMatch); // Ya es resumen
             console.log(`[RAG] Facultad detectada: ${facultyMatch.nombre}`);
@@ -482,13 +486,26 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             const cleanResponse = response.replace('[SOLICITUD_ASESOR]', '').trim();
             if (cleanResponse) await flowDynamic(cleanResponse);
 
-            // 7. Detectar intención de programa para futura confirmación
-            const programInResponse = findProgram(response);
-            const targetProgram = programInResponse || programMatch;
+            // 7. Enviar Brochures automáticamente si se detectaron programas (hasta 5)
+            const programsInResponse = findPrograms(response);
+            const allMatchedPrograms = [...(programsMatch || []), ...(programsInResponse || [])];
+            
+            // Eliminar duplicados
+            const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.id)))
+                .map(id => allMatchedPrograms.find(p => p.id === id))
+                .slice(0, 3); // Máximo 3 para evitar spam
 
-            if (targetProgram) {
-                await state.update({ pendingProgram: targetProgram.nombre });
-                console.log(`[Flow] Programa pendiente de confirmación: ${targetProgram.nombre}`);
+            if (uniquePrograms.length > 0) {
+                console.log(`[Flow] Enviando ${uniquePrograms.length} brochures detectados...`);
+                for (const targetProgram of uniquePrograms) {
+                    if (targetProgram.brochure) {
+                        await delay(1500);
+                        await flowDynamic([{
+                            body: `📄 *Brochure Oficial:* ${targetProgram.nombre}`,
+                            media: targetProgram.brochure
+                        }]);
+                    }
+                }
             }
 
             // 8. Interceptar [SOLICITUD_ASESOR] (Derivación Reactiva Automática)
@@ -537,32 +554,13 @@ const processApiQueue = async (provider) => {
     isProcessingQueue = false;
 };
 
-const estadoExpedienteFlow = addKeyword(['dni', 'expediente', 'estado', 'inscrito', 'inscripcion'])
-    .addAnswer('Por favor, indícame tu número de DNI para consultar el estado de tu inscripción y expediente.', { capture: true }, async (ctx, { flowDynamic, fallBack }) => {
-        const dni = ctx.body.trim();
-        // Validación básica de DNI (8 a 12 dígitos)
-        if (!/^\d{8,12}$/.test(dni)) {
-            return fallBack('El DNI ingresado no parece válido. Por favor, ingresa solo números válidos.');
-        }
 
-        const result = await checkInscriptionByDni(dni);
-
-        if (result.error) {
-            await flowDynamic(result.error);
-        } else {
-            await flowDynamic([
-                `Hola *${result.nombres} ${result.apellidos}*, hemos encontrado tu información.`,
-                `🎓 *Programa:* ${result.programa}\n` +
-                `📄 *Estado de tu expediente:* ${result.mensajeExpediente}`
-            ]);
-        }
-    });
 
 const main = async () => {
     console.log('[Bot] Inicializando catálogo desde Supabase...');
     await initCatalog();
 
-    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowVerificacion, estadoExpedienteFlow, mediaFlow])
+    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowExpediente, flowExpedienteProcesar, mediaFlow])
     const adapterProvider = createProvider(Provider);
     const adapterDB = new Database();
 
@@ -1071,11 +1069,13 @@ const main = async () => {
 
     adapterProvider.server.post('/v1/enviar-datos', handleCtx(async (bot, req, res) => {
         let { wa_id, nombre, facultad, programa, dni, telefono } = req.body;
-        const targetNumber = wa_id || telefono;
+        let targetNumber = wa_id || telefono;
 
         if (!targetNumber || !dni) {
             return res.writeHead(400).end(JSON.stringify({ error: 'Faltan wa_id/telefono o dni' }));
         }
+
+        targetNumber = targetNumber.includes('@') ? targetNumber : `${targetNumber}@s.whatsapp.net`;
 
         console.log(`[API v1] Petición recibida para ${nombre} (DNI: ${dni}).`);
 

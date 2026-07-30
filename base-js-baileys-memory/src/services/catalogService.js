@@ -11,6 +11,34 @@ const normalizeText = (text) => {
     return norm
 }
 
+const levenshtein = (a, b) => {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = [];
+    for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= b.length; i++) {
+        for (let j = 1; j <= a.length; j++) {
+            if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1,
+                    matrix[i][j - 1] + 1,
+                    matrix[i - 1][j] + 1
+                );
+            }
+        }
+    }
+    return matrix[b.length][a.length];
+};
+
+const isWordMatch = (queryWord, targetWord) => {
+    if (targetWord.includes(queryWord) || queryWord.includes(targetWord)) return true;
+    if (queryWord.length > 4 && targetWord.length > 4 && levenshtein(queryWord, targetWord) <= 2) return true;
+    return false;
+};
+
 /**
  * Descarga los datos de Supabase y construye el catálogo en memoria.
  */
@@ -63,7 +91,8 @@ export const initCatalog = async () => {
                         descripcion: p.descripcion,
                         link_ws: p.link_ws,
                         perfiles_programa: p.perfiles_programa,
-                        malla_curricular: p.malla_curricular
+                        malla_curricular: p.malla_curricular,
+                        brochure: p.link || p.brochure
                     };
                 }
             }
@@ -93,13 +122,14 @@ export const getCatalog = () => {
 /**
  * Busca un programa específico por nombre usando una comparación más flexible.
  */
-export const findProgram = (query) => {
+export const findPrograms = (query) => {
     const catalog = getCatalog()
-    if (!catalog || !query || query.trim().length < 4) return null
+    if (!catalog || !query || query.trim().length < 4) return []
 
     const queryNorm = normalizeText(query)
+    const matchedPrograms = []
+    const queryWords = queryNorm.split(/\s+/).filter(w => w.length > 3)
 
-    // 1. Coincidencia exacta o contenida (Caso ideal)
     for (const facultyId in catalog) {
         const facultad = catalog[facultyId]
         const categories = ['maestrias', 'doctorados', 'especialidades']
@@ -110,38 +140,34 @@ export const findProgram = (query) => {
                     const program = facultad[cat][progId]
                     const progNameNorm = normalizeText(program.nombre)
 
+                    // 1. Coincidencia exacta o contenida
                     if (queryNorm.includes(progNameNorm) || progNameNorm.includes(queryNorm)) {
-                        return { ...program, facultad: facultad.nombre, tipo: cat }
+                        matchedPrograms.push({ ...program, facultad: facultad.nombre, tipo: cat })
+                        continue;
+                    }
+
+                    // 2. Coincidencia por palabras clave
+                    if (queryWords.length > 0) {
+                        const targetWords = progNameNorm.split(/\s+/)
+                        const matchCount = queryWords.filter(qWord => 
+                            targetWords.some(tWord => isWordMatch(qWord, tWord))
+                        ).length
+
+                        if (matchCount >= 2) {
+                            matchedPrograms.push({ ...program, facultad: facultad.nombre, tipo: cat })
+                        }
                     }
                 }
             }
         }
     }
 
-    // 2. Coincidencia por palabras clave (Fuzzy)
-    const queryWords = queryNorm.split(/\s+/).filter(w => w.length > 3)
-    if (queryWords.length === 0) return null
+    return matchedPrograms
+}
 
-    for (const facultyId in catalog) {
-        const facultad = catalog[facultyId]
-        const categories = ['maestrias', 'doctorados', 'especialidades']
-        for (const cat of categories) {
-            if (facultad[cat]) {
-                for (const progId in facultad[cat]) {
-                    const program = facultad[cat][progId]
-                    const progNameLower = program.nombre.toLowerCase()
-                    const matchCount = queryWords.filter(word => progNameLower.includes(word)).length
-
-                    // Si coinciden al menos 2 palabras clave significativas
-                    if (matchCount >= 2) {
-                        return { ...program, facultad: facultad.nombre, tipo: cat }
-                    }
-                }
-            }
-        }
-    }
-
-    return null
+export const findProgram = (query) => {
+    const results = findPrograms(query);
+    return results.length > 0 ? results[0] : null;
 }
 
 /**
@@ -210,7 +236,10 @@ export const findProgramFuzzy = (query) => {
     if (queryWords.length > 0) {
         const matchesByKeyword = allPrograms.map(p => {
             const nameNorm = normalizeText(p.nombre)
-            const overlap = queryWords.filter(w => nameNorm.includes(w)).length
+            const targetWords = nameNorm.split(/\s+/)
+            const overlap = queryWords.filter(qWord => 
+                targetWords.some(tWord => isWordMatch(qWord, tWord))
+            ).length
             return { program: p, overlap }
         }).filter(m => m.overlap >= 1) // Al menos 1 palabra clave significativa
 
