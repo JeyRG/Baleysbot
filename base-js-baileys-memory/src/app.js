@@ -487,12 +487,12 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             if (cleanResponse) await flowDynamic(cleanResponse);
 
             // 7. Enviar Brochures automáticamente si se detectaron programas (hasta 5)
-            const programsInResponse = findPrograms(response);
+            const programsInResponse = findPrograms(response || '');
             const allMatchedPrograms = [...(programsMatch || []), ...(programsInResponse || [])];
             
             // Eliminar duplicados
-            const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.id)))
-                .map(id => allMatchedPrograms.find(p => p.id === id))
+            const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.nombre)))
+                .map(nombre => allMatchedPrograms.find(p => p.nombre === nombre))
                 .slice(0, 3); // Máximo 3 para evitar spam
 
             if (uniquePrograms.length > 0) {
