@@ -329,7 +329,7 @@ const flowExpediente = addKeyword([
         }
     );
 
-const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
+const welcomeFlow = addKeyword(EVENTS.WELCOME)
     .addAction(async (ctx, { flowDynamic, state, provider, gotoFlow, endFlow }) => {
         const userId = ctx.from;
         const body = ctx.body?.trim() || '';
