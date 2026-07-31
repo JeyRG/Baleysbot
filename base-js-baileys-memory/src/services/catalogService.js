@@ -1,14 +1,27 @@
 import { supabaseData as supabase } from './supabaseClient.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 let cachedCatalog = null;
+let cachedTiposInfo = {};  // Datos enriquecidos de tipos_programas
 let isFetching = false;
 
 const normalizeText = (text) => {
     if (!text) return ""
-    // Quitar tildes, pasar a minúsculas y quitar palabras vacías comunes
     let norm = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     norm = norm.replace(/\b(de|la|en|el|y|con|mencion)\b/g, "").replace(/\s+/g, " ").trim()
     return norm
+}
+
+const normalizeName = (name) => {
+    return (name || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, '')
+        .replace(/\s+/g, ' ').trim();
 }
 
 const levenshtein = (a, b) => {
@@ -40,7 +53,55 @@ const isWordMatch = (queryWord, targetWord) => {
 };
 
 /**
+ * Carga el mapa de brochures desde brochures.json
+ */
+function loadBrochuresMap() {
+    try {
+        const brochuresPath = path.join(__dirname, '..', 'data', 'brochures.json');
+        const rawBrochures = JSON.parse(fs.readFileSync(brochuresPath, 'utf-8'));
+        const map = {};
+        for (const [id, entry] of Object.entries(rawBrochures)) {
+            if (entry.brochure) {
+                map[normalizeName(entry.nombre)] = entry.brochure;
+            }
+        }
+        console.log(`[Catalog] ✅ Brochures cargados desde JSON: ${Object.keys(map).length} programas`);
+        return map;
+    } catch (e) {
+        console.warn('[Catalog] ⚠️ No se pudo cargar brochures.json:', e.message);
+        return {};
+    }
+}
+
+/**
+ * Busca un brochure URL por nombre de programa usando fuzzy matching
+ */
+function matchBrochureUrl(programName, brochuresMap) {
+    const normalized = normalizeName(programName);
+    // 1. Match exacto
+    if (brochuresMap[normalized]) return brochuresMap[normalized];
+
+    // 2. Match fuzzy por palabras clave
+    const words = normalized.split(' ').filter(w => w.length > 2);
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const [mapName, url] of Object.entries(brochuresMap)) {
+        let score = 0;
+        for (const word of words) {
+            if (mapName.includes(word)) score++;
+        }
+        if (score > bestScore && score >= words.length * 0.7) {
+            bestScore = score;
+            bestMatch = url;
+        }
+    }
+    return bestMatch;
+}
+
+/**
  * Descarga los datos de Supabase y construye el catálogo en memoria.
+ * Ahora incluye datos enriquecidos de tipos_programas y URLs de brochures.
  */
 export const initCatalog = async () => {
     if (isFetching) return;
@@ -57,34 +118,59 @@ export const initCatalog = async () => {
             return;
         }
 
+        // Cargar brochures desde JSON
+        const brochuresMap = loadBrochuresMap();
+
         const newCatalog = {};
-        
-        // Mapear tipos de programa por ID
+
+        // Mapear tipos de programa por ID con datos enriquecidos
         const tiposMap = {};
+        const newTiposInfo = {};
         tipos.forEach(t => {
-            const nombre = t.nombre_tipoprograma.toLowerCase();
+            const nombre = (t.nombre_tipoprograma || '').toLowerCase();
             let cat = 'otros';
             if (nombre.includes('maest')) cat = 'maestrias';
             else if (nombre.includes('doctorado')) cat = 'doctorados';
             else if (nombre.includes('especial')) cat = 'especialidades';
+
             tiposMap[t.id_tipoprograma] = cat;
+
+            // Guardar datos enriquecidos por categoría
+            if (!newTiposInfo[cat] || cat !== 'otros') {
+                newTiposInfo[cat] = {
+                    nombre: t.nombre_tipoprograma,
+                    costos: t.costos || null,
+                    requisitos: t.requisitos || null,
+                    duracion: t.duracion_programa || null,
+                    creditos: t.creditos_programa || null,
+                    costo_ciclo: t.costo_per_ciclo || null,
+                    numero_cuenta: t.numero_cuenta || null,
+                };
+            }
         });
+
+        cachedTiposInfo = newTiposInfo;
 
         // Crear la estructura de facultades
         unidades.forEach(u => {
             newCatalog[u.id_unidad] = {
                 nombre: u.nombre_unidad,
+                correo: u.correo_unidad || null,
+                telefono: u.telefono_unidad || null,
                 maestrias: {},
                 doctorados: {},
                 especialidades: {}
             };
         });
 
-        // Poblar programas
+        // Poblar programas con brochure URL incluido
         programas.forEach(p => {
             if (p.id_unidad && newCatalog[p.id_unidad]) {
                 const cat = tiposMap[p.id_tipoprograma] || 'maestrias';
                 if (newCatalog[p.id_unidad][cat]) {
+                    // Buscar brochure URL del JSON
+                    const brochureUrl = matchBrochureUrl(p.nombre_programa, brochuresMap);
+
                     newCatalog[p.id_unidad][cat][p.id_programa] = {
                         id: p.id_programa,
                         nombre: p.nombre_programa,
@@ -92,21 +178,32 @@ export const initCatalog = async () => {
                         link_ws: p.link_ws,
                         perfiles_programa: p.perfiles_programa,
                         malla_curricular: p.malla_curricular,
-                        brochure: p.link || p.brochure
+                        brochure: brochureUrl || null,
                     };
                 }
             }
         });
 
         cachedCatalog = newCatalog;
-        console.log('[Catalog] Supabase data loaded into memory cache.');
+
+        // Contar programas
+        let totalProgs = 0;
+        let totalBrochures = 0;
+        for (const fId in newCatalog) {
+            for (const cat of ['maestrias', 'doctorados', 'especialidades']) {
+                const progs = Object.values(newCatalog[fId][cat] || {});
+                totalProgs += progs.length;
+                totalBrochures += progs.filter(p => p.brochure).length;
+            }
+        }
+        console.log(`[Catalog] ✅ Catálogo cargado: ${totalProgs} programas, ${totalBrochures} con brochure`);
     } catch (error) {
         console.error('[Catalog] Exception in initCatalog:', error);
     }
     isFetching = false;
 }
 
-// Iniciar actualización cada hora (3600000 ms)
+// Actualización cada hora
 setInterval(initCatalog, 3600000);
 
 /**
@@ -120,7 +217,14 @@ export const getCatalog = () => {
 }
 
 /**
- * Busca un programa específico por nombre usando una comparación más flexible.
+ * Devuelve los datos enriquecidos de un tipo de programa (maestrias, doctorados, especialidades)
+ */
+export const getTipoProgramaInfo = (category) => {
+    return cachedTiposInfo[category] || null;
+}
+
+/**
+ * Busca programas por nombre usando comparación flexible.
  */
 export const findPrograms = (query) => {
     const catalog = getCatalog()
@@ -149,7 +253,7 @@ export const findPrograms = (query) => {
                     // 2. Coincidencia por palabras clave
                     if (queryWords.length > 0) {
                         const targetWords = progNameNorm.split(/\s+/)
-                        const matchCount = queryWords.filter(qWord => 
+                        const matchCount = queryWords.filter(qWord =>
                             targetWords.some(tWord => isWordMatch(qWord, tWord))
                         ).length
 
@@ -177,7 +281,7 @@ export const findCategory = (query) => {
     const queryNorm = normalizeText(query)
     if (queryNorm.includes('maestria')) return 'maestrias'
     if (queryNorm.includes('doctorado')) return 'doctorados'
-    if (queryNorm.includes('especialidad')) return 'especialidades'
+    if (queryNorm.includes('especialidad') || queryNorm.includes('segunda especial')) return 'especialidades'
     return null
 }
 
@@ -188,21 +292,110 @@ export const getContextForCategory = (category) => {
     const catalog = getCatalog()
     if (!catalog || !category) return ""
 
-    let ctx = `🎓 *LISTA DE ${category.toUpperCase()} - UNAC*\n\n`
+    const tipoInfo = getTipoProgramaInfo(category);
+    const categoryLabel = category === 'maestrias' ? 'MAESTRÍAS' :
+        category === 'doctorados' ? 'DOCTORADOS' :
+            category === 'especialidades' ? 'SEGUNDAS ESPECIALIDADES' : category.toUpperCase();
+
+    let ctx = `🎓 *LISTA DE ${categoryLabel} - UNAC*\n\n`
+
+    // Agregar datos del tipo si existen
+    if (tipoInfo) {
+        if (tipoInfo.duracion) ctx += `⏳ *Duración:* ${tipoInfo.duracion}\n`;
+        if (tipoInfo.costos) ctx += `💰 *Costos:* ${tipoInfo.costos}\n`;
+        if (tipoInfo.creditos) ctx += `📚 *Créditos:* ${tipoInfo.creditos}\n`;
+        ctx += '\n';
+    }
+
+    let programCount = 0;
     for (const facultyId in catalog) {
         const facultad = catalog[facultyId]
         if (facultad[category]) {
-            ctx += `🏢 *${facultad.nombre}:*\n`
-            Object.values(facultad[category]).forEach(p => ctx += `• ${p.nombre}\n`)
-            ctx += `\n`
+            const progs = Object.values(facultad[category]);
+            if (progs.length > 0) {
+                ctx += `🏢 *${facultad.nombre}:*\n`
+                progs.forEach(p => {
+                    ctx += `• ${p.nombre}\n`;
+                    programCount++;
+                });
+                ctx += `\n`
+            }
         }
     }
-    ctx += `¿Deseas información de algún programa en específico? ✨`
+
+    if (programCount === 0) {
+        return `No se encontraron programas en la categoría ${categoryLabel}.`;
+    }
+
+    ctx += `📊 *Total:* ${programCount} programas\n\n`;
+    ctx += `¿Deseas información de algún programa en específico? Te envío el brochure oficial 📄✨`
     return ctx
 }
 
 /**
- * Búsqueda ultra-flexible para el envío de brochures (DNI Verification)
+ * Devuelve un array plano con todos los programas de una categoría.
+ */
+export const getAllProgramsByCategory = (category) => {
+    const catalog = getCatalog()
+    if (!catalog || !category) return []
+
+    const programs = [];
+    for (const facultyId in catalog) {
+        const facultad = catalog[facultyId]
+        if (facultad[category]) {
+            Object.values(facultad[category]).forEach(p => {
+                programs.push({ ...p, facultad: facultad.nombre, tipo: category })
+            })
+        }
+    }
+    return programs;
+}
+
+/**
+ * Genera un resumen general de TODOS los programas de posgrado (las 3 categorías).
+ */
+export const getAllProgramsGeneral = () => {
+    const catalog = getCatalog()
+    if (!catalog) return "No se pudo cargar el catálogo de programas."
+
+    let maestriasCount = 0, doctoradosCount = 0, especialidadesCount = 0;
+
+    for (const facultyId in catalog) {
+        const f = catalog[facultyId];
+        maestriasCount += Object.keys(f.maestrias || {}).length;
+        doctoradosCount += Object.keys(f.doctorados || {}).length;
+        especialidadesCount += Object.keys(f.especialidades || {}).length;
+    }
+
+    const total = maestriasCount + doctoradosCount + especialidadesCount;
+
+    let msg = `🎓 *OFERTA ACADÉMICA DE POSGRADO - UNAC*\n\n`;
+    msg += `Contamos con *${total} programas de posgrado* en las siguientes modalidades:\n\n`;
+    msg += `📘 *Maestrías:* ${maestriasCount} programas\n`;
+    msg += `📕 *Doctorados:* ${doctoradosCount} programas\n`;
+    msg += `📗 *Segundas Especialidades:* ${especialidadesCount} programas\n\n`;
+
+    // Datos de costo general si están disponibles
+    const tipoMaestria = getTipoProgramaInfo('maestrias');
+    const tipoDoctorado = getTipoProgramaInfo('doctorados');
+    const tipoEspecialidad = getTipoProgramaInfo('especialidades');
+
+    if (tipoMaestria?.duracion || tipoDoctorado?.duracion || tipoEspecialidad?.duracion) {
+        msg += `⏳ *Duración:*\n`;
+        if (tipoMaestria?.duracion) msg += `  • Maestría: ${tipoMaestria.duracion}\n`;
+        if (tipoDoctorado?.duracion) msg += `  • Doctorado: ${tipoDoctorado.duracion}\n`;
+        if (tipoEspecialidad?.duracion) msg += `  • Especialidad: ${tipoEspecialidad.duracion}\n`;
+        msg += '\n';
+    }
+
+    msg += `Escribe *maestrías*, *doctorados* o *especialidades* para ver la lista completa de cada una. 📋\n`;
+    msg += `O dime el nombre del programa que te interesa para enviarte el brochure oficial 📄✨`;
+
+    return msg;
+}
+
+/**
+ * Búsqueda ultra-flexible para el envío de brochures
  */
 export const findProgramFuzzy = (query) => {
     const catalog = getCatalog()
@@ -210,7 +403,6 @@ export const findProgramFuzzy = (query) => {
 
     const queryNorm = normalizeText(query)
 
-    // Lista de todos los programas para buscar
     let allPrograms = []
     for (const facultyId in catalog) {
         const facultad = catalog[facultyId]
@@ -218,13 +410,13 @@ export const findProgramFuzzy = (query) => {
         categories.forEach(cat => {
             if (facultad[cat]) {
                 Object.values(facultad[cat]).forEach(p => {
-                    allPrograms.push({ ...p, facultad: facultad.nombre })
+                    allPrograms.push({ ...p, facultad: facultad.nombre, tipo: cat })
                 })
             }
         })
     }
 
-    // 1. Coincidencia por sub-cadena (ignora tildes y mayúsculas)
+    // 1. Coincidencia por sub-cadena
     const matchSimple = allPrograms.find(p => {
         const nameNorm = normalizeText(p.nombre)
         return nameNorm.includes(queryNorm) || queryNorm.includes(nameNorm)
@@ -232,19 +424,18 @@ export const findProgramFuzzy = (query) => {
     if (matchSimple) return matchSimple
 
     // 2. Coincidencia por palabras clave compartidas
-    const queryWords = queryNorm.split(/\s+/).filter(w => w.length > 2) // Palabras de 3+ letras
+    const queryWords = queryNorm.split(/\s+/).filter(w => w.length > 2)
     if (queryWords.length > 0) {
         const matchesByKeyword = allPrograms.map(p => {
             const nameNorm = normalizeText(p.nombre)
             const targetWords = nameNorm.split(/\s+/)
-            const overlap = queryWords.filter(qWord => 
+            const overlap = queryWords.filter(qWord =>
                 targetWords.some(tWord => isWordMatch(qWord, tWord))
             ).length
             return { program: p, overlap }
-        }).filter(m => m.overlap >= 1) // Al menos 1 palabra clave significativa
+        }).filter(m => m.overlap >= 1)
 
         if (matchesByKeyword.length > 0) {
-            // Devolver el que tenga más coincidencia
             return matchesByKeyword.sort((a, b) => b.overlap - a.overlap)[0].program
         }
     }
@@ -310,7 +501,7 @@ export const getSummaryContext = () => {
 }
 
 /**
- * Obtiene solo los nombres de todos los programas en una lista plana (para ahorrar tokens)
+ * Obtiene solo los nombres de todos los programas en una lista plana
  */
 export const getAllProgramNamesOnly = () => {
     const catalog = getCatalog()
@@ -327,4 +518,21 @@ export const getAllProgramNamesOnly = () => {
         })
     }
     return names.join(' • ')
+}
+
+/**
+ * Genera un contexto enriquecido con datos de costos/requisitos para Grok
+ */
+export const getEnrichedContextForGrok = (category) => {
+    const tipoInfo = getTipoProgramaInfo(category);
+    if (!tipoInfo) return '';
+
+    let ctx = '';
+    if (tipoInfo.costos) ctx += `Costos de ${category}: ${tipoInfo.costos}\n`;
+    if (tipoInfo.requisitos) ctx += `Requisitos de ${category}: ${tipoInfo.requisitos}\n`;
+    if (tipoInfo.duracion) ctx += `Duración de ${category}: ${tipoInfo.duracion}\n`;
+    if (tipoInfo.creditos) ctx += `Créditos de ${category}: ${tipoInfo.creditos}\n`;
+    if (tipoInfo.costo_ciclo) ctx += `Costo por ciclo de ${category}: ${tipoInfo.costo_ciclo}\n`;
+    if (tipoInfo.numero_cuenta) ctx += `Número de cuenta para ${category}: ${tipoInfo.numero_cuenta}\n`;
+    return ctx;
 }

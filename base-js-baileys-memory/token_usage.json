@@ -1,0 +1,28 @@
+{
+  "total": {
+    "prompt_tokens": 1453,
+    "completion_tokens": 447,
+    "total_tokens": 1900,
+    "requests": 8
+  },
+  "days": {
+    "2026-07-30": {
+      "prompt_tokens": 1039,
+      "completion_tokens": 433,
+      "total_tokens": 1472,
+      "requests": 7,
+      "models": {
+        "llama-3.1-8b-instant": 7
+      }
+    },
+    "2026-07-31": {
+      "prompt_tokens": 414,
+      "completion_tokens": 14,
+      "total_tokens": 428,
+      "requests": 1,
+      "models": {
+        "llama-3.1-8b-instant": 1
+      }
+    }
+  }
+}

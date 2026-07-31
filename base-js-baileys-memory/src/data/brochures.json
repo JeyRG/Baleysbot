@@ -1,0 +1,262 @@
+{
+  "1": {
+    "nombre": "Maestría en Salud Pública",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/MAESTRIA/BROCHURE_MAESTRIA_EN_SALUD_PUBLICA.pdf"
+  },
+  "2": {
+    "nombre": "Maestría en Salud Ocupacional y Ambiental",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/MAESTRIA/BROCHURE_MAESTRIA_EN_SALUD_OCUPACIONAL_Y_AMBIENTAL.pdf"
+  },
+  "3": {
+    "nombre": "Maestría en Gerencia en Salud",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/MAESTRIA/BROCHURE_MAESTRIA_EN_GERENCIA_EN_SALUD.pdf"
+  },
+  "4": {
+    "nombre": "Maestría en Enfermería",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/MAESTRIA/BROCHURE_MAESTRIA_EN_ENFERMERIA.pdf"
+  },
+  "5": {
+    "nombre": "Maestría en Enfermería Familiar y Comunitaria",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/MAESTRIA/BROCHURE_MAESTRIA_EN_ENFERMERIA_FAMILIAR_Y_COMUNITARIA.pdf"
+  },
+  "6": {
+    "nombre": "Maestría en Ciencias de Salud con Mención en Educación para la Salud",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIAS_DE_SALUD_CON_MENCION_EN_EDUCACION_PARA_SALUD.pdf"
+  },
+  "7": {
+    "nombre": "Doctorado en Salud Pública",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/DOCTORADO/BROCHURE_DOCTORADO_EN_SALUD_PUBLICA.pdf"
+  },
+  "8": {
+    "nombre": "Doctorado en Enfermería",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/DOCTORADO/BROCHURE_DOCTORADO_EN_ENFERMERIA.pdf"
+  },
+  "9": {
+    "nombre": "Doctorado en Ciencias de la Salud",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/DOCTORADO/BROCHURE_DOCTORADO_EN_CIENCIAS_DE_SALUD.pdf"
+  },
+  "10": {
+    "nombre": "Doctorado en Administración en Salud",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/DOCTORADO/BROCHURE_DOCTORADO_EN_ADMINISTRACION_EN_SALUD.pdf"
+  },
+  "11": {
+    "nombre": "Especialidad en Salud Pública y Comunitaria",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_SALUD_PUBLICA_Y_COMUNITARIA.pdf"
+  },
+  "12": {
+    "nombre": "Especialidad en Salud Familiar y Comunitaria",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_SALUD_FAMILIAR_Y_COMUNITARIA.pdf"
+  },
+  "13": {
+    "nombre": "Especialidad en Política y Gestión de Salud en Enfermería",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_POLITICA_Y_GESTION_DE_SALUD_EN_ENFERMERIA.pdf"
+  },
+  "14": {
+    "nombre": "Especialidad en Enfermería Pediátrica",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_PEDIATRICA.pdf"
+  },
+  "15": {
+    "nombre": "Especialidad en Enfermería Neonatología",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_NEONATOLOGIA.pdf"
+  },
+  "16": {
+    "nombre": "Especialidad en Enfermería Intensiva",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_INTENSIVA.pdf"
+  },
+  "17": {
+    "nombre": "Especialidad en Enfermería en Salud Mental",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_SALUD_MENTAL.pdf"
+  },
+  "18": {
+    "nombre": "Especialidad en Enfermería en Salud del Niño y Adolescente",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_SALUD_DEL_NIÑO_Y_ADOLESCENTE.pdf"
+  },
+  "19": {
+    "nombre": "Especialidad en Enfermería en Oncología",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_ONCOLOGIA.pdf"
+  },
+  "20": {
+    "nombre": "Especialidad en Enfermería en Gerontología y Geriátrica",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_GERONTOLOGIA_Y_GERIATRICA.pdf"
+  },
+  "21": {
+    "nombre": "Especialidad en Enfermería en Epidemiología",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_EPIDEMIOLOGIA.pdf"
+  },
+  "22": {
+    "nombre": "Especialidad en Enfermería en Emergencias y Desastres",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_EMERGENCIAS_Y_DESASTRES.pdf"
+  },
+  "23": {
+    "nombre": "Especialidad en Enfermería en Cuidado Quirúrgico",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_CUIDADO_QUIRURGICO.pdf"
+  },
+  "24": {
+    "nombre": "Especialidad en Enfermería en Crecimiento, Desarrollo del Niño y Estimulación de Primera Infancia",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_CDN_Y_EPI.pdf"
+  },
+  "25": {
+    "nombre": "Especialidad en Enfermería en Centro Quirúrgico",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ENFERMERIA_EN_CENTRO_QUIRURGICO.pdf"
+  },
+  "26": {
+    "nombre": "Especialidad en Administración en Salud",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCS/ESPECIALIDAD/BROCHURE_ESPECIALIDAD_EN_ADMINISTRACION_EN_SALUD.pdf"
+  },
+  "27": {
+    "nombre": "Maestría en Ingeniería Industrial con Mención en Gerencia en Logística",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIIS/MAESTRIA/BROCHURE_MAESTRIA_EN_INGENIERIA_INDUSTRIAL_CON_MENCION_EN_GERENCIA_EN_LOGISTICA.pdf"
+  },
+  "28": {
+    "nombre": "Maestría en Ingeniería Industrial con Mención en Gerencia de Calidad y Productividad",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIIS/MAESTRIA/BROCHURE_MAESTRIA_EN_INGENIERIA_INDUSTRIAL_CON_MENCION_EN_GERENCIA_DE_CALIDAD_Y_PRODUCTIVIDAD.pdf"
+  },
+  "29": {
+    "nombre": "Maestría en Ingeniería de Sistemas",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIIS/MAESTRIA/BROCHURE_MAESTRIA_EN_INGENIERIA_DE_SISTEMAS.pdf"
+  },
+  "30": {
+    "nombre": "Doctorado en Ingeniería Industrial",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIIS/DOCTORADO/BROCHURE_DOCTORADO_EN_INGENIERIA_INDUSTRIAL.pdf"
+  },
+  "31": {
+    "nombre": "Doctorado en Ingeniería de Sistemas",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIIS/DOCTORADO/BROCHURE_DOCTORADO_EN_INGENIERIA_DE_SISTEMAS.pdf"
+  },
+  "32": {
+    "nombre": "Maestría en Proyectos de Inversión",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCE/MAESTRIA/BROCHURE_MAESTRIA_EN_PROYECTOS_DE_INVERSION.pdf"
+  },
+  "33": {
+    "nombre": "Maestría en Investigación y Docencia Universitaria",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCE/MAESTRIA/BROCHURE_MAESTRIA_EN_INVESTIGACION_Y_DOCENCIA_UNIVERSITARIA.pdf"
+  },
+  "34": {
+    "nombre": "Maestría en Finanzas",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCE/MAESTRIA/BROCHURE_MAESTRIA_EN_FINANZAS.pdf"
+  },
+  "35": {
+    "nombre": "Maestría en Comercio y Negociaciones Internacionales",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCE/MAESTRIA/BROCHURE_MAESTRIA_EN_COMERCIO_Y_NEGOCIACIONES_INTERNACIONALES.pdf"
+  },
+  "36": {
+    "nombre": "Maestría en Gerencia Educativa",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCA/MAESTRIA/BROCHURE_MAESTRIA_EN_GERENCIA_EDUCATIVA.pdf"
+  },
+  "37": {
+    "nombre": "Maestría en Administración Marítima y Portuaria",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCA/MAESTRIA/BROCHURE_MAESTRIA_EN_ADMINISTRACION_MARITIMA_Y_PORTUARIA.pdf"
+  },
+  "38": {
+    "nombre": "Maestría en Administración Estratégica de Empresas",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCA/MAESTRIA/BROCHURE_MAESTRIA_EN_ADMINISTRACION_ESTRATEGICA_DE_EMPRESAS.pdf"
+  },
+  "39": {
+    "nombre": "Doctorado en Administración",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCA/DOCTORADO/BROCHURE_DOCTORADO_EN_ADMINISTRACION.pdf"
+  },
+  "40": {
+    "nombre": "Maestría en Tributación",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCC/MAESTRIA/BROCHURE_MAESTRIA_EN_TRIBUTACION.pdf"
+  },
+  "41": {
+    "nombre": "Maestría en Gestión Pública",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCC/MAESTRIA/BROCHURE_MAESTRIA_EN_GESTION_PUBLICA.pdf"
+  },
+  "42": {
+    "nombre": "Maestría en Ciencias Fiscalizadoras con Mención en Auditoría Integral Empresarial",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCC/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIAS_FISCALIZADORAS_CON_MENCION_EN_AUDITORIA_INTEGRAL_EMPRESARIAL.pdf"
+  },
+  "43": {
+    "nombre": "Maestría en Ciencias Fiscalizadoras con Mención en Auditoría Gubernamental",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCC/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIAS_FISCALIZADORAS_CON_MENCION_EN_AUDITORIA_GUBERNAMENTAL.pdf"
+  },
+  "44": {
+    "nombre": "Doctorado en Ciencias Contables",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCC/DOCTORADO/BROCHURE_DOCTORADO_EN_CIENCIAS_CONTABLES.pdf"
+  },
+  "45": {
+    "nombre": "Maestría en Ingeniería Química",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIQ/MAESTRIA/BROCHURE_MAESTRIA_EN_INGENIERIA_QUIMICA.pdf"
+  },
+  "46": {
+    "nombre": "Maestría en Gerencia de Calidad y Desarrollo Humano",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIQ/MAESTRIA/BROCHURE_MAESTRIA_EN_GERENCIA_DE_CALIDAD_Y_DESARROLLO_HUMANO.pdf"
+  },
+  "47": {
+    "nombre": "Maestría en Ciencia y Tecnología de Alimentos",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIQ/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIA_Y_TECNOLOGIA_ALIMENTOS.pdf"
+  },
+  "48": {
+    "nombre": "Maestría en Didáctica de la Enseñanza de Física y Matemática",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCNM/MAESTRIA/BROCHURE_MAESTRIA_EN_DIDACTICA_DE_ENSENANZA_DE_FISICA_Y_MATEMATICA.pdf"
+  },
+  "49": {
+    "nombre": "Maestría en Ingeniería de Alimentos",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIPA/MAESTRIA/BROCHURE_MAESTRIA_INGENIERIA_DE_ALIMENTOS.pdf"
+  },
+  "50": {
+    "nombre": "Maestría en Gestión Pesquera",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIPA/MAESTRIA/BROCHURE_MAESTRIA_GESTION_PESQUERA.pdf"
+  },
+  "51": {
+    "nombre": "Maestría en Sistemas Integrados de Gestión",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIPA/MAESTRIA/MAESTRIA_EN_SISTEMAS_INTEGRADOS_DE_GESTION.pdf"
+  },
+  "52": {
+    "nombre": "Maestría en Nutrición y Biotecnología Alimentaria",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIPA/MAESTRIA/MAESTRIA_EN_NUTRICION_Y_BIOTECNOLOGIA_ALIMENTARIA.pdf"
+  },
+  "53": {
+    "nombre": "Doctorado en Ciencias, Tecnologías Acuícolas y Pesqueras",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIPA/DOCTORADO/DOCTORADO_EN_CIENCIAS,_TECNOLOGIAS_ACUICOLAS_Y_PESQUERAS.pdf"
+  },
+  "54": {
+    "nombre": "Doctorado en Ingeniería de Alimentos",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIPA/DOCTORADO/DOCTORADO_EN_INGENIERIA_DE_ALIMENTOS.pdf"
+  },
+  "55": {
+    "nombre": "Maestría en Gerencia del Mantenimiento",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIME/MAESTRIA/BROCHURE_MAESTRIA_EN_GERENCIA_DEL_MANTENIMIENTO.pdf"
+  },
+  "56": {
+    "nombre": "Maestría en Ingeniería Eléctrica con Mención en Gestión de Sistemas de Energía Eléctrica",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIEE/MAESTRIA/BROCHURE_MAESTRIA_EN_INGENIERIA_ELECTRICA_CON_MENCION_EN_GESTION_DE_SISTEMAS_ENERGIA_ELECTRICA.pdf"
+  },
+  "58": {
+    "nombre": "Maestría en Ciencias de Electrónica con Mención en Telecomunicaciones",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIEE/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIAS_DE_ELECTRONICA_CON_MENCION_TELECOMUNICACIONES.pdf"
+  },
+  "59": {
+    "nombre": "Maestría en Ciencias de Electrónica con Mención en Ingeniería Biomédica",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIEE/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIAS_DE_ELECTRONICA_CON_MENCION_INGENIERIA_BIOMEDICA.pdf"
+  },
+  "60": {
+    "nombre": "Maestría en Ciencias de Electrónica con Mención en Control y Automatización",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIEE/MAESTRIA/BROCHURE_MAESTRIA_EN_CIENCIAS_DE_ELECTRONICA_CON_MENCION_EN_CONTROL_Y_AUTOMATIZACION.pdf"
+  },
+  "61": {
+    "nombre": "Doctorado en Ingeniería Eléctrica",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIEE/DOCTORADO/BROCHURE_DOCTORADO_EN_INGENIERIA_ELECTRICA.pdf"
+  },
+  "62": {
+    "nombre": "Maestría en Gestión Ambiental para el Desarrollo Sostenible",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIARN/MAESTRIA/BROCHURE_MAESTRIA_EN_GESTION_AMBIENTAL_PARA_DESARROLLO_SOSTENIBLE.pdf"
+  },
+  "63": {
+    "nombre": "Especialidad en Educación Física y Mención en Actividad Física para la Salud",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCED/ESPECIALIDAD/ESPECIALIDAD_EDUCACIÓN_FISICA_CON_MENCION_EN_ACTIVIDAD_FISICA_PARA_SALUD.pdf"
+  },
+  "64": {
+    "nombre": "Maestría en Educación con mención en Diseño y Gestión Curricular",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCED/MAESTRIA/MAESTRIA_EDUCACIÓN_CON_MENCIÓN_DISEÑO_Y_GESTIÓN_CURRICULAR.pdf"
+  },
+  "65": {
+    "nombre": "Doctorado en Ciencias de la Educación",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FCED/DOCTORADO/BROCHURE_DOCTORADO_EN_CIENCIAS_DE_LA_EDUCACION.pdf"
+  },
+  "66": {
+    "nombre": "Maestría en Inteligencia Artificial y Ciencias de Datos",
+    "brochure": "https://posgradounac.edu.pe/docs/brochure/FIIS/MAESTRIA/BROCHURE_MAESTRIA_EN_INTELIGENCIA_ARTIFICIAL_Y_CIENCIAS_DE_DATOS.pdf"
+  }
+}

@@ -277,3 +277,30 @@ CREATE TABLE IF NOT EXISTS public.pending_leads (
 
 ALTER TABLE public.pending_leads ENABLE ROW LEVEL SECURITY;
 
+-- =========================================================================
+-- SISTEMA DE REVISIÓN DE RESPUESTAS (ENTRENAMIENTO)
+-- =========================================================================
+
+-- Tabla para loguear cada interacción del bot para revisión posterior
+CREATE TABLE IF NOT EXISTS public.chatbot_interactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    wa_id TEXT,
+    user_query TEXT NOT NULL,
+    bot_response TEXT NOT NULL,
+    embedding vector(384),
+    source TEXT DEFAULT 'grok',          -- 'grok', 'cache', 'catalog'
+    reviewed BOOLEAN DEFAULT false,       -- ¿Ya fue revisada por admin?
+    is_correct BOOLEAN,                   -- null = pendiente, true = correcta, false = incorrecta
+    corrected_response TEXT,              -- Respuesta corregida si is_correct = false
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Índices para consultas frecuentes
+CREATE INDEX IF NOT EXISTS idx_chatbot_interactions_reviewed ON public.chatbot_interactions(reviewed);
+CREATE INDEX IF NOT EXISTS idx_chatbot_interactions_created ON public.chatbot_interactions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_chatbot_interactions_source ON public.chatbot_interactions(source);
+
+-- RLS
+ALTER TABLE public.chatbot_interactions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Administrar interacciones publico" ON public.chatbot_interactions FOR ALL USING (true);
+

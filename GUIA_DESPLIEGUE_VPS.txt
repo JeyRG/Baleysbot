@@ -26,6 +26,11 @@ sudo npm install -g pm2
 Copia las carpetas 'base-js-baileys-memory' y 'dashboard' a tu VPS.
 Puedes usar Git o un cliente SFTP (FileZilla / WinSCP).
 
+Si lo haces desde Windows con PowerShell, puedes usar:
+
+scp -r "C:\Users\JEYSON\3D Objects\BOT2703\base-js-baileys-memory" usuario@TU_IP:/home/usuario/apps/
+scp -r "C:\Users\JEYSON\3D Objects\BOT2703\dashboard" usuario@TU_IP:/home/usuario/apps/
+
 --------------------------------------------------------------------
 3. CONFIGURACIÓN DEL BOT (Backend)
 --------------------------------------------------------------------
@@ -40,6 +45,11 @@ me quede aqui
 nano .env
 # Pega tus credenciales de SUPABASE y GROK. Asegúrate de incluir:
 # PUBLIC_URL=http://TU_IP_O_DOMINIO:3000
+# GROQ_API_KEY=tu_api_key
+# SUPABASE_URL=tu_url
+# SUPABASE_SERVICE_KEY=tu_service_key
+# SUPABASE_DATA_URL=tu_data_url
+# SUPABASE_DATA_KEY=tu_data_key
 
 # Iniciar el bot con PM2
 pm2 start src/app.js --name "whatsapp-bot"
@@ -60,7 +70,7 @@ nano .env.local
 npm run build
 
 # Iniciar el dashboard con PM2
-pm2 start npm --name "next-dashboard" -- start -- -p 3004
+pm2 start npm --name "next-dashboard" -- run start -- -p 3004
 
 --------------------------------------------------------------------
 5. (OPCIONAL) CONFIGURAR DOMINIO Y SSL (Nginx)

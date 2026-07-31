@@ -1,3 +1,6 @@
+// Ignorar errores de certificado SSL (posgradounac.edu.pe tiene certificado incompleto)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 import 'dotenv/config'
 import fs from 'fs'
 import path from 'path'
@@ -7,14 +10,174 @@ import { join } from 'path'
 import { createBot, createProvider, createFlow, addKeyword, utils, EVENTS } from '@builderbot/bot'
 import { MemoryDB as Database } from '@builderbot/bot'
 import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
-import { getGrokCompletion as originalGetGrokCompletion } from './grokClient.js'
+import { getGrokCompletion as originalGetGrokCompletion, getTokenUsageSummary } from './grokClient.js'
 
 // Servicios
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
 import { checkInscriptionByDni } from './services/inscriptionService.js'
-import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy } from './services/catalogService.js'
+import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok } from './services/catalogService.js'
 import { getRAGContext } from './services/knowledgeService.js'
+
+import { fileURLToPath } from 'url';
+const __filenameApp = fileURLToPath(import.meta.url);
+const __dirnameApp = path.dirname(__filenameApp);
+const pendingProgramInfoSelections = new Map();
+
+function buildProgramExtraInfo(program) {
+    if (!program) return '';
+
+    const sections = [];
+
+    if (program.descripcion) {
+        sections.push(`*📖 Descripción:*
+${program.descripcion}`);
+    }
+
+    if (program.perfiles_programa) {
+        sections.push(`*🎯 Perfil del Egresado:*
+${program.perfiles_programa}`);
+    }
+
+    if (sections.length === 0) return '';
+
+    return `✨ *Conoce más de tu programa:*
+
+${sections.join('\n\n')}`;
+}
+
+function buildProgramTeaser(program) {
+    if (!program) return '';
+
+    const teaserLines = [];
+
+    if (program.descripcion) {
+        teaserLines.push(program.descripcion);
+    }
+
+    teaserLines.push('Si quieres, te envío el brochure oficial.');
+
+    return teaserLines.slice(0, 2).join('\n\n');
+}
+
+function buildProgramDetailMessage(program) {
+    if (!program) return '';
+
+    const lines = [
+        `🎓 *${program.nombre}*`,
+    ];
+
+    if (program.facultad) {
+        lines.push(`🏢 *Facultad:* ${program.facultad}`);
+        lines.push(`📚 *Tipo:* ${program.tipo.replace('maestrias', 'Maestría').replace('doctorados', 'Doctorado').replace('especialidades', 'Especialidad')}`);
+    }
+
+    if (program.descripcion) {
+        lines.push(`📖 *Descripción:* ${program.descripcion}`);
+    }
+
+    if (program.perfiles_programa) {
+        lines.push(`🎯 *Perfil del egresado:* ${formatProgramField(program.perfiles_programa)}`);
+    }
+
+    return lines.join('\n\n');
+}
+
+function formatProgramField(value) {
+    if (value == null) return '';
+    if (typeof value === 'string') return value.trim();
+    if (Array.isArray(value)) {
+        return value.map(item => formatProgramField(item)).filter(Boolean).join('\n');
+    }
+    if (typeof value === 'object') {
+        if (Object.prototype.hasOwnProperty.call(value, 'descripcion')) {
+            return formatProgramField(value.descripcion);
+        }
+        return Object.values(value).map(item => formatProgramField(item)).filter(Boolean).join('\n');
+    }
+    return String(value).trim();
+}
+
+function normalizeReply(text) {
+    return (text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[.,!?;]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isAffirmativeReply(text) {
+    const normalized = normalizeReply(text);
+    return /^(si|claro|ok|dale|por supuesto|afirmativo|yes)(\s|$)/.test(normalized) ||
+        /\b(si|sí)\b/.test(normalized);
+}
+
+function compactContext(context, maxChars = 900) {
+    if (!context) return '';
+    const compact = context
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .join('\n')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    if (compact.length <= maxChars) return compact;
+    return compact.slice(0, maxChars).trimEnd();
+}
+
+function isGeneralCategoryRequest(bodyLower, categoryIntent, specificProgramMatch) {
+    if (!categoryIntent) return false;
+
+    const genericIntent = /\b(informacion|información|info|lista|programas|ofrecen|tienen|quiero saber|dame|mostrar|ver)\b/i.test(bodyLower);
+    if (!genericIntent) return false;
+
+    const normalized = bodyLower
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const tokens = normalized.split(' ').filter(Boolean);
+    const noise = new Set([
+        'hola', 'buenas', 'buenos', 'dias', 'tardes', 'noches',
+        'informacion', 'info', 'lista', 'programas', 'ofrecen', 'tienen', 'quiero', 'saber', 'dame', 'mostrar', 'ver',
+        'de', 'del', 'la', 'el', 'las', 'los', 'un', 'una', 'unos', 'unas', 'sobre', 'mas', 'mas',
+        'maestrias', 'maestria', 'doctorados', 'doctorado', 'especialidades', 'especialidad'
+    ]);
+
+    const remaining = tokens.filter(token => !noise.has(token));
+    if (remaining.length === 0) return true;
+
+    if (!specificProgramMatch && remaining.length <= 1) return true;
+    return false;
+}
+
+function isCategoryOnlyRequest(bodyLower, categoryIntent) {
+    if (!categoryIntent) return false;
+
+    const normalized = normalizeReply(bodyLower);
+    const categoryHints = [
+        'maestria', 'maestrias', 'doctorado', 'doctorados', 'especialidad', 'especialidades',
+        'segunda especialidad', 'segundas especialidades', 'segunda especialidades', 'segundas especialidad'
+    ];
+
+    if (categoryHints.some(hint => normalized.includes(hint))) {
+        const extraWords = normalized
+            .replace(/\b(maestria|maestrias|doctorado|doctorados|especialidad|especialidades|segunda|segundas|especial)\b/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return extraWords.length === 0 || extraWords.split(' ').length <= 2;
+    }
+
+    return false;
+}
+
+// Mapa de selecciones pendientes de brochures por usuario
+const pendingBrochureSelections = new Map();
 
 // Handlers globales
 process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
@@ -96,26 +259,40 @@ const saveToCache = async (question, answer, embedding) => {
 /**
  * Wrapper para Grok con RAG Dinámico
  */
-const getGrokCompletion = async (userName, message, context = '') => {
+const getGrokCompletion = async (userName, message, context = '', options = {}) => {
     try {
-        const systemPrompt = `Eres el Asesor Académico de la Escuela de Posgrado de la Universidad Nacional del Callao (UNAC), PERÚ. 🇵🇪✨
-REGLAS:
-- Responde de forma BREVE (máx 2 párrafos cortos). Usa emojis.
-- Usa EXCLUSIVAMENTE la información del "Contexto" si está disponible.
-- Si el "Contexto" menciona costos o fechas, úsalos.
-- NO menciones otras universidades como la Autónoma de Chiriquí. Eres la UNAC del CALLAO, PERÚ.
-- Si se detectan programas específicos, indica brevemente que le estás adjuntando la información oficial (brochure).
-- Si no sabes la respuesta o piden humano, responde con el código: [SOLICITUD_ASESOR]
-Contexto: ${context}`
+        const cleanContext = compactContext(context, options.maxContextChars ?? 900);
+        const systemPrompt = `Asesor UNAC de posgrado. Responde breve, claro y solo con datos del contexto si existe. Usa máximo 1-2 frases. Si falta info o piden humano: [SOLICITUD_ASESOR]. No menciones otras universidades.`
 
-        const grokResponse = await originalGetGrokCompletion([
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: message }
-        ]);
+        const messages = [{ role: 'system', content: cleanContext ? `${systemPrompt}\nContexto: ${cleanContext}` : systemPrompt }, { role: 'user', content: message }];
+
+        const grokResponse = await originalGetGrokCompletion(messages, {
+            maxTokens: options.maxTokens ?? 180,
+            temperature: options.temperature ?? 0.2,
+            model: options.model,
+        });
         return grokResponse.choices?.[0]?.message?.content || null;
     } catch (e) {
         console.error('[Grok] Error:', e);
         return null;
+    }
+}
+
+/**
+ * Loguea una interacción del bot para revisión posterior
+ */
+const logInteraction = async (waId, userQuery, botResponse, embedding, source = 'grok') => {
+    try {
+        await supabase.from('chatbot_interactions').insert({
+            wa_id: waId,
+            user_query: userQuery,
+            bot_response: botResponse || '',
+            embedding: embedding || null,
+            source: source,
+        });
+    } catch (e) {
+        // No bloquear el flujo si falla el logueo
+        console.error('[Interactions] Error al loguear interacción:', e.message);
     }
 }
 
@@ -350,16 +527,89 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
         let user = loadUserData(userId);
         const bodyLower = body.toLowerCase();
-        const cleanBody = bodyLower.replace(/[.,!?]/g, '').trim();
+        const cleanBody = normalizeReply(bodyLower);
         const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
         const s = await state.getMyState() || {};
-        const isAffirmative = ['si', 'sí', 'yes', 'claro', 'por supuesto', 'afirmativo', 'simón', 'dale', 'si porfavor', 'si por favor', 'sí por favor', 'si porfa', 'sí porfa', 'si quiero'].includes(cleanBody);
+        const isAffirmative = isAffirmativeReply(cleanBody);
 
         // 1. Manejo de Agradecimientos
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
         if (thanks.some(t => bodyLower.includes(t))) {
             return await flowDynamic(`¡De nada, *${user.nombre || 'estimado'}*! 😊 Fue un gusto ayudarte. Si tienes más dudas en el futuro, aquí estaré. ¡Que tengas un excelente día! 🎓✨`);
+        }
+
+        // 1.5. Manejo de selección de brochures pendiente
+        if (pendingBrochureSelections.has(userId)) {
+            const pending = pendingBrochureSelections.get(userId);
+            const selections = cleanBody.split(/[,\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+            
+            if (selections.length > 0 && selections.every(n => n >= 1 && n <= pending.length)) {
+                pendingBrochureSelections.delete(userId);
+                for (const num of selections) {
+                    const selected = pending[num - 1];
+                    try {
+                        const extraInfo = buildProgramExtraInfo(selected);
+                        if (extraInfo) {
+                            await flowDynamic(extraInfo);
+                            await delay(1500);
+                        }
+                        await flowDynamic([{
+                            body: `📄 *Brochure Oficial:* ${selected.nombre}`,
+                            media: selected.brochureUrl
+                        }]);
+                        await delay(1500);
+                    } catch (brochErr) {
+                        console.error(`[Flow] Error al enviar brochure:`, brochErr.message);
+                    }
+                }
+                return;
+            } else if (cleanBody === 'todos' || cleanBody === 'todas') {
+                pendingBrochureSelections.delete(userId);
+                for (const item of pending) {
+                    try {
+                        const extraInfo = buildProgramExtraInfo(item);
+                        if (extraInfo) {
+                            await flowDynamic(extraInfo);
+                            await delay(1500);
+                        }
+                        await flowDynamic([{
+                            body: `📄 *Brochure Oficial:* ${item.nombre}`,
+                            media: item.brochureUrl
+                        }]);
+                        await delay(1500);
+                    } catch (brochErr) {
+                        console.error(`[Flow] Error al enviar brochure:`, brochErr.message);
+                    }
+                }
+                return;
+            } else if (cleanBody === 'ninguno' || cleanBody === 'no' || cleanBody === 'cancelar') {
+                pendingBrochureSelections.delete(userId);
+                return await flowDynamic('✅ Entendido, no se enviarán brochures. ¿En qué más puedo ayudarte?');
+            }
+            // Si no es un número válido ni comando, limpiar y continuar normalmente
+            pendingBrochureSelections.delete(userId);
+        }
+
+        // 1.6. Confirmación pendiente para enviar información completa de un programa
+        if (pendingProgramInfoSelections.has(userId)) {
+            const pending = pendingProgramInfoSelections.get(userId);
+            if (isAffirmativeReply(cleanBody) || /\b(envia|envía|mandalo|mándalo|todos)\b/.test(cleanBody)) {
+                pendingProgramInfoSelections.delete(userId);
+                if (pending.brochureUrl) {
+                    await flowDynamic([{ body: `📄 *Brochure Oficial:* ${pending.nombre}`, media: pending.brochureUrl }]);
+                } else {
+                    await flowDynamic('No encontré un brochure oficial disponible para este programa.');
+                }
+                return;
+            }
+
+            if (['no', 'ninguno', 'cancelar'].includes(cleanBody)) {
+                pendingProgramInfoSelections.delete(userId);
+                return await flowDynamic('✅ Perfecto, solo te dejo la información corta. Si luego quieres la malla o el brochure, me lo pides.');
+            }
+
+            pendingProgramInfoSelections.delete(userId);
         }
 
         // 2. Detección de solicitud de asesor humano (desde el usuario)
@@ -387,11 +637,84 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             }
         }
 
+        const categoryIntent = findCategory(bodyLower);
+        const matchedPrograms = findPrograms(body);
+        const matchedProgram = findProgram(body);
+        const facultyMatch = findFaculty(body);
+
+        if (isCategoryOnlyRequest(bodyLower, categoryIntent)) {
+            const list = getContextForCategory(categoryIntent);
+            console.log(`[Flow] Consulta de categoría prioritaria detectada: ${categoryIntent}`);
+            // Loguear interacción
+            await logInteraction(userId, body, list, null, 'catalog');
+            return await flowDynamic(list);
+        }
+
+        // Detección de consulta general de posgrado ("programas", "oferta académica", etc.)
+        const isGeneralPosgradoQuery = /\b(programas?|oferta|posgrado|que\s+ofrecen|que\s+tienen)\b/i.test(bodyLower)
+            && !categoryIntent && !matchedProgram && matchedPrograms.length === 0;
+        if (isGeneralPosgradoQuery) {
+            const generalMsg = getAllProgramsGeneral();
+            console.log(`[Flow] Consulta general de posgrado detectada.`);
+            await logInteraction(userId, body, generalMsg, null, 'catalog');
+            return await flowDynamic(generalMsg);
+        }
+
+        if (matchedProgram) {
+            console.log(`[Flow] Programa detectado en catálogo: ${matchedProgram.nombre}`);
+            const detailMessage = buildProgramDetailMessage(matchedProgram);
+            if (detailMessage) {
+                await flowDynamic(detailMessage);
+            }
+
+            // Envío AUTOMÁTICO del brochure (sin preguntar)
+            const brochureUrl = matchedProgram.brochure;
+            if (brochureUrl) {
+                await delay(1000);
+                try {
+                    await flowDynamic([{
+                        body: `📄 *Brochure Oficial:* ${matchedProgram.nombre}`,
+                        media: brochureUrl
+                    }]);
+                    console.log(`[Flow] ✅ Brochure enviado automáticamente: ${matchedProgram.nombre}`);
+                } catch (brochErr) {
+                    console.error(`[Flow] Error al enviar brochure:`, brochErr.message);
+                }
+            }
+
+            // Loguear interacción
+            await logInteraction(userId, body, detailMessage || matchedProgram.nombre, null, 'catalog');
+            return;
+        }
+
+        if (categoryIntent && isGeneralCategoryRequest(bodyLower, categoryIntent, matchedProgram)) {
+            const list = getContextForCategory(categoryIntent);
+            console.log(`[Flow] Consulta general de categoría detectada: ${categoryIntent}`);
+            await logInteraction(userId, body, list, null, 'catalog');
+            return await flowDynamic(list);
+        }
+
+        if (matchedPrograms.length > 1) {
+            const catalogList = matchedPrograms.slice(0, 8).map((program, index) => {
+                const facultyLabel = program.facultad ? ` - ${program.facultad}` : '';
+                return `*${index + 1}.* ${program.nombre}${facultyLabel}`;
+            }).join('\n');
+
+            return await flowDynamic(
+                `📋 Encontré varios programas en la base de datos:\n\n${catalogList}\n\nResponde con el número del programa que deseas revisar.`
+            );
+        }
+
+        if (facultyMatch) {
+            console.log(`[Flow] Facultad detectada: ${facultyMatch.nombre}`);
+            return await flowDynamic(getContextForFaculty(facultyMatch));
+        }
+
         // 2. Confirmación de Asesor (REACCION A "SI")
         if (isAffirmative && body.split(' ').length <= 4) {
             if (s.pendingAdvisor) {
                 await state.update({ pendingAdvisor: null });
-                return await gotoFlow(solicitudAsesorFlow);
+                return gotoFlow(solicitudAsesorFlow);
             }
         }
 
@@ -433,22 +756,31 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         } catch (e) { console.error('[Flow] Error en embedding/cache:', e) }
 
         // 5. RAG Dinámico
-        const programsMatch = findPrograms(body);
-        const facultyMatch = findFaculty(body);
-        const categoryMatch = findCategory(body);
+        const programsMatch = matchedPrograms;
+        const categoryMatch = categoryIntent;
         let dynamicContext = "";
 
         if (programsMatch && programsMatch.length > 0) {
             dynamicContext = programsMatch.map(p => `Programa: ${p.nombre}. Info: ${p.descripcion}. Indica que adjuntarás el brochure oficial de este programa.`).join('\n');
             console.log(`[RAG] Programas detectados: ${programsMatch.map(p => p.nombre).join(', ')}`);
         } else if (facultyMatch) {
-            dynamicContext = getContextForFaculty(facultyMatch); // Ya es resumen
+            dynamicContext = getContextForFaculty(facultyMatch);
             console.log(`[RAG] Facultad detectada: ${facultyMatch.nombre}`);
         } else if (categoryMatch) {
-            dynamicContext = getContextForCategory(categoryMatch); // Lista de nombres
+            dynamicContext = getContextForCategory(categoryMatch);
+            // Enriquecer con datos de tipos_programas (costos, requisitos, duración)
+            const enriched = getEnrichedContextForGrok(categoryMatch);
+            if (enriched) dynamicContext += '\n' + enriched;
             console.log(`[RAG] Categoría detectada: ${categoryMatch}`);
         } else {
             dynamicContext = "Contamos con Maestrías, Doctorados y Especialidades en 7 facultades: Salud, Ingeniería (Industrial, Eléctrica, Pesquera), Administración, Contables y Educación.";
+            // Agregar contexto enriquecido de todos los tipos
+            const enrichedM = getEnrichedContextForGrok('maestrias');
+            const enrichedD = getEnrichedContextForGrok('doctorados');
+            const enrichedE = getEnrichedContextForGrok('especialidades');
+            if (enrichedM || enrichedD || enrichedE) {
+                dynamicContext += '\nDatos de programas:\n' + (enrichedM || '') + (enrichedD || '') + (enrichedE || '');
+            }
         }
 
         // 5.5 RAG Complementario (Supabase Knowledge Base)
@@ -475,37 +807,62 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
 
         // 6. Consulta Grok
-        const response = await getGrokCompletion(user.nombre, body, dynamicContext);
+        const response = await getGrokCompletion(user.nombre, body, dynamicContext, {
+            maxTokens: 180,
+            maxContextChars: 900,
+        });
         console.log(`[Grok] Respuesta cruda: "${response}"`);
 
         if (response) {
             // Guardar en Caché
             if (embedding) await saveToCache(body, response, embedding);
 
-            // Manejo de respuesta límpia
+            // Manejo de respuesta limpia
             const cleanResponse = response.replace('[SOLICITUD_ASESOR]', '').trim();
             if (cleanResponse) await flowDynamic(cleanResponse);
 
-            // 7. Enviar Brochures automáticamente si se detectaron programas (hasta 5)
+            // Loguear interacción en chatbot_interactions
+            await logInteraction(userId, body, cleanResponse, embedding, 'grok');
+
+            // 7. Enviar Brochures automáticamente si se detectaron programas
             const programsInResponse = findPrograms(response || '');
             const allMatchedPrograms = [...(programsMatch || []), ...(programsInResponse || [])];
             
             // Eliminar duplicados
             const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.nombre)))
                 .map(nombre => allMatchedPrograms.find(p => p.nombre === nombre))
-                .slice(0, 3); // Máximo 3 para evitar spam
+                .slice(0, 3);
 
-            if (uniquePrograms.length > 0) {
-                console.log(`[Flow] Enviando ${uniquePrograms.length} brochures detectados...`);
-                for (const targetProgram of uniquePrograms) {
-                    if (targetProgram.brochure) {
-                        await delay(1500);
-                        await flowDynamic([{
-                            body: `📄 *Brochure Oficial:* ${targetProgram.nombre}`,
-                            media: targetProgram.brochure
-                        }]);
-                    }
+            // Filtrar programas que tengan brochure disponible
+            const programsWithBrochure = uniquePrograms
+                .map(p => ({ ...p, brochureUrl: p.brochure }))
+                .filter(p => p.brochureUrl);
+
+            if (programsWithBrochure.length === 1) {
+                // Solo 1 programa → enviar brochure directo (AUTOMÁTICO)
+                console.log(`[Flow] Enviando brochure automático: ${programsWithBrochure[0].nombre}`);
+                try {
+                    await delay(1000);
+                    await flowDynamic([{
+                        body: `📄 *Brochure Oficial:* ${programsWithBrochure[0].nombre}`,
+                        media: programsWithBrochure[0].brochureUrl
+                    }]);
+                } catch (brochErr) {
+                    console.error(`[Flow] Error al enviar brochure:`, brochErr.message);
                 }
+            } else if (programsWithBrochure.length > 1) {
+                // Múltiples programas → mostrar lista y esperar selección
+                console.log(`[Flow] ${programsWithBrochure.length} brochures encontrados. Mostrando lista.`);
+                const listItems = programsWithBrochure.map((p, i) => `*${i + 1}.* ${p.nombre}`).join('\n');
+                
+                pendingBrochureSelections.set(userId, programsWithBrochure);
+                
+                await delay(1000);
+                await flowDynamic(
+                    `📋 Encontré *${programsWithBrochure.length} brochures* disponibles:\n\n` +
+                    listItems + '\n\n' +
+                    '👉 Responde con el *número* del programa que deseas (ej: *1*), varios separados por coma (ej: *1, 3*), o escribe *todos* para recibirlos todos.'
+                );
             }
 
             // 8. Interceptar [SOLICITUD_ASESOR] (Derivación Reactiva Automática)
@@ -560,7 +917,7 @@ const main = async () => {
     console.log('[Bot] Inicializando catálogo desde Supabase...');
     await initCatalog();
 
-    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, flowExpediente, flowExpedienteProcesar, mediaFlow])
+    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, mediaFlow])
     const adapterProvider = createProvider(Provider);
     const adapterDB = new Database();
 
@@ -660,53 +1017,53 @@ const main = async () => {
             const result = await originalSendMessage.call(adapterProvider, number, message, options);
             console.log(`[DEBUG] Mensaje enviado exitosamente a ${number}`);
 
-        // Normalizar el wa_id (quitar @s.whatsapp.net para que coincida con ctx.from)
-        const cleanNumber = number.includes('@') ? number.split('@')[0] : number;
+            // Normalizar el wa_id (quitar @s.whatsapp.net para que coincida con ctx.from)
+            const cleanNumber = number.includes('@') ? number.split('@')[0] : number;
 
-        // Si este mensaje fue originado desde el dashboard, NO lo insertamos otra vez
-        const dedupKey = `${cleanNumber}:${typeof message === 'string' ? message : ''}`;
-        if (_dashboardPendingSends.has(dedupKey)) {
-            _dashboardPendingSends.delete(dedupKey);
-            // Solo actualizar el timestamp de la conversación
-            try {
-                await supabase.from('conversations')
-                    .update({ updated_at: new Date().toISOString() })
-                    .eq('wa_id', cleanNumber);
-            } catch (e) { }
-            return result;
-        }
-
-        try {
-            // Asegurar que existe la conversación para mensajes salientes también
-            const { data: existingConv } = await supabase
-                .from('conversations')
-                .select('id')
-                .eq('wa_id', cleanNumber)
-                .single();
-
-            if (!existingConv) {
-                await supabase.from('conversations').insert({
-                    wa_id: cleanNumber,
-                    status: 'bot',
-                    updated_at: new Date().toISOString()
-                });
-            } else {
-                await supabase.from('conversations')
-                    .update({ updated_at: new Date().toISOString() })
-                    .eq('wa_id', cleanNumber);
+            // Si este mensaje fue originado desde el dashboard, NO lo insertamos otra vez
+            const dedupKey = `${cleanNumber}:${typeof message === 'string' ? message : ''}`;
+            if (_dashboardPendingSends.has(dedupKey)) {
+                _dashboardPendingSends.delete(dedupKey);
+                // Solo actualizar el timestamp de la conversación
+                try {
+                    await supabase.from('conversations')
+                        .update({ updated_at: new Date().toISOString() })
+                        .eq('wa_id', cleanNumber);
+                } catch (e) { }
+                return result;
             }
 
-            await supabase.from('messages').insert({
-                wa_id: cleanNumber,
-                text: typeof message === 'string' ? message : (options?.media ? '📎 Archivo enviado' : 'Mensaje automático'),
-                media_url: options?.media || null,
-                sender_type: 'bot'
-            });
-        } catch (e) {
-            console.error('[Dashboard Sync] Error al persistir respuesta del Bot:', e);
-        }
+            try {
+                // Asegurar que existe la conversación para mensajes salientes también
+                const { data: existingConv } = await supabase
+                    .from('conversations')
+                    .select('id')
+                    .eq('wa_id', cleanNumber)
+                    .single();
 
-        return result;
+                if (!existingConv) {
+                    await supabase.from('conversations').insert({
+                        wa_id: cleanNumber,
+                        status: 'bot',
+                        updated_at: new Date().toISOString()
+                    });
+                } else {
+                    await supabase.from('conversations')
+                        .update({ updated_at: new Date().toISOString() })
+                        .eq('wa_id', cleanNumber);
+                }
+
+                await supabase.from('messages').insert({
+                    wa_id: cleanNumber,
+                    text: typeof message === 'string' ? message : (options?.media ? '📎 Archivo enviado' : 'Mensaje automático'),
+                    media_url: options?.media || null,
+                    sender_type: 'bot'
+                });
+            } catch (e) {
+                console.error('[Dashboard Sync] Error al persistir respuesta del Bot:', e);
+            }
+
+            return result;
         } catch (globalErr) {
             console.error(`[DEBUG] Error catastrofico en originalSendMessage:`, globalErr);
             throw globalErr;
@@ -780,6 +1137,18 @@ const main = async () => {
             qr_base64: qr_base64,
             timestamp: new Date().toISOString()
         }));
+    });
+
+    adapterProvider.server.get('/bot/token-usage', (req, res) => {
+        try {
+            const usage = getTokenUsageSummary();
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(usage));
+        } catch (error) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: error.message }));
+        }
     });
 
 
@@ -1059,6 +1428,194 @@ const main = async () => {
     });
 
 
+
+    // --- ENDPOINTS DE REVISIÓN DE RESPUESTAS (ENTRENAMIENTO) ---
+
+    // Listar interacciones pendientes de revisión
+    adapterProvider.server.get('/bot/responses-review', async (req, res) => {
+        try {
+            const reviewed = req.query?.reviewed;
+            const source = req.query?.source;
+            const limit = parseInt(req.query?.limit) || 50;
+
+            let query = supabase
+                .from('chatbot_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (reviewed === 'false') {
+                query = query.eq('reviewed', false);
+            } else if (reviewed === 'true') {
+                query = query.eq('reviewed', true);
+            }
+
+            if (source) {
+                query = query.eq('source', source);
+            }
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(data));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Aprobar una respuesta como correcta → guardar en semantic_cache
+    adapterProvider.server.post('/bot/responses-review/:id/approve', async (req, res) => {
+        try {
+            const { id } = req.params;
+
+            // 1. Obtener la interacción
+            const { data: interaction, error: fetchErr } = await supabase
+                .from('chatbot_interactions')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (fetchErr || !interaction) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Interacción no encontrada' }));
+            }
+
+            // 2. Generar embedding si no existe
+            let embeddingToSave = interaction.embedding;
+            if (!embeddingToSave) {
+                embeddingToSave = await getEmbedding(interaction.user_query);
+            }
+
+            // 3. Guardar en semantic_cache
+            if (embeddingToSave) {
+                await supabase.from('semantic_cache').insert({
+                    question: interaction.user_query,
+                    answer: interaction.bot_response,
+                    embedding: embeddingToSave,
+                });
+            }
+
+            // 4. Marcar como revisada y correcta
+            await supabase
+                .from('chatbot_interactions')
+                .update({ reviewed: true, is_correct: true })
+                .eq('id', id);
+
+            console.log(`[Review] ✅ Interacción ${id} aprobada y guardada en caché.`);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, message: 'Respuesta aprobada y guardada en caché semántico' }));
+        } catch (err) {
+            console.error('[Review] Error al aprobar:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Corregir una respuesta incorrecta → guardar corrección en cache + knowledge_base
+    adapterProvider.server.post('/bot/responses-review/:id/correct', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { corrected_response } = req.body;
+
+            if (!corrected_response) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Se requiere corrected_response en el body' }));
+            }
+
+            // 1. Obtener la interacción original
+            const { data: interaction, error: fetchErr } = await supabase
+                .from('chatbot_interactions')
+                .select('*')
+                .eq('id', id)
+                .single();
+
+            if (fetchErr || !interaction) {
+                res.statusCode = 404;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: 'Interacción no encontrada' }));
+            }
+
+            // 2. Generar embedding
+            let embeddingToSave = interaction.embedding;
+            if (!embeddingToSave) {
+                embeddingToSave = await getEmbedding(interaction.user_query);
+            }
+
+            // 3. Guardar respuesta CORREGIDA en semantic_cache
+            if (embeddingToSave) {
+                await supabase.from('semantic_cache').insert({
+                    question: interaction.user_query,
+                    answer: corrected_response,
+                    embedding: embeddingToSave,
+                });
+            }
+
+            // 4. Guardar en knowledge_base para enriquecer el RAG
+            const kbEmbedding = await getEmbedding(corrected_response);
+            if (kbEmbedding) {
+                await supabase.from('knowledge_base').insert({
+                    content: `Pregunta: ${interaction.user_query}\nRespuesta correcta: ${corrected_response}`,
+                    embedding: kbEmbedding,
+                    metadata: { corrected_from: id, original_response: interaction.bot_response },
+                });
+            }
+
+            // 5. Marcar como revisada e incorrecta con la corrección
+            await supabase
+                .from('chatbot_interactions')
+                .update({
+                    reviewed: true,
+                    is_correct: false,
+                    corrected_response: corrected_response,
+                })
+                .eq('id', id);
+
+            console.log(`[Review] ✏️ Interacción ${id} corregida. Guardada en caché + knowledge_base.`);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, message: 'Respuesta corregida y guardada en caché semántico + base de conocimientos' }));
+        } catch (err) {
+            console.error('[Review] Error al corregir:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
+
+    // Estadísticas de revisión
+    adapterProvider.server.get('/bot/responses-review/stats', async (req, res) => {
+        try {
+            const { data: allData, error } = await supabase
+                .from('chatbot_interactions')
+                .select('reviewed, is_correct, source');
+
+            if (error) throw error;
+
+            const stats = {
+                total: allData.length,
+                pending: allData.filter(d => !d.reviewed).length,
+                approved: allData.filter(d => d.reviewed && d.is_correct === true).length,
+                corrected: allData.filter(d => d.reviewed && d.is_correct === false).length,
+                by_source: {},
+            };
+
+            allData.forEach(d => {
+                stats.by_source[d.source] = (stats.by_source[d.source] || 0) + 1;
+            });
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(stats));
+        } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+        }
+    });
 
     // --- FIN INTEGRACIÓN DASHBOARD PREMIUM ---
 
