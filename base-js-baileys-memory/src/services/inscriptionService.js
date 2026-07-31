@@ -9,7 +9,7 @@ export const checkInscriptionByDni = async (dni) => {
             .eq('dni', dni);
             
         if (errP || !personas || personas.length === 0) {
-            return { error: 'No se encontró ninguna persona con ese DNI en nuestra base de datos.' };
+            return { error: '❌ No encontré ninguna persona con ese DNI en nuestra base de datos. Si deseas postular y aún no te has inscrito, puedes pedirme los *pasos de inscripción*.' };
         }
         const persona = personas[0];
 
@@ -22,7 +22,7 @@ export const checkInscriptionByDni = async (dni) => {
             .limit(1);
 
         if (errI || !inscripciones || inscripciones.length === 0) {
-            return { error: `Hola ${persona.nombres}, estás registrado pero aún no tienes una inscripción a un programa activa.` };
+            return { error: `Hola ${persona.nombres}, estás registrado pero aún no tienes una inscripción a un programa activa. Pídeme los *pasos de inscripción* para orientarte.` };
         }
         const inscripcion = inscripciones[0];
 
@@ -41,10 +41,15 @@ export const checkInscriptionByDni = async (dni) => {
             .select('mensaje_estado, id_estadoseguimiento')
             .eq('id_inscrito', inscripcion.id_inscrito);
 
-        let mensajeExpediente = 'Aún no se ha registrado un expediente de postulación para ti.';
+        let tieneExpediente = false;
+        let idEstadoSeguimiento = null;
+        let mensajeExpediente = '';
+
         if (postulantes && postulantes.length > 0) {
+            tieneExpediente = true;
             const postulante = postulantes[0];
-            mensajeExpediente = postulante.mensaje_estado || 'Tu expediente está en revisión o a la espera de actualización.';
+            idEstadoSeguimiento = postulante.id_estadoseguimiento;
+            mensajeExpediente = postulante.mensaje_estado || '';
         }
 
         return {
@@ -52,7 +57,9 @@ export const checkInscriptionByDni = async (dni) => {
             nombres: persona.nombres,
             apellidos: persona.apellidos,
             programa: nombrePrograma,
-            mensajeExpediente: mensajeExpediente
+            tieneExpediente,
+            idEstadoSeguimiento,
+            mensajeExpediente
         };
     } catch (error) {
         console.error('[InscriptionService] Error:', error);

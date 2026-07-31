@@ -345,6 +345,23 @@ const mediaFlow = addKeyword(EVENTS.MEDIA)
 // Ayuda de retardo
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
+function formatSupabaseField(data) {
+    if (!data) return '';
+    if (typeof data === 'string') return data;
+    if (Array.isArray(data)) {
+        return data.map(item => {
+            if (typeof item === 'object' && item !== null) {
+                return Object.entries(item).map(([k, v]) => `${k}: ${v}`).join(' | ');
+            }
+            return String(item);
+        }).join('\n');
+    }
+    if (typeof data === 'object' && data !== null) {
+        return Object.entries(data).map(([k, v]) => `${k}: ${v}`).join('\n');
+    }
+    return String(data);
+}
+
 /**
  * LÓGICA DE ENVÍO AUTOMATIZADO (Post-Verificación)
  */
@@ -355,7 +372,7 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
             console.error('[Flow] ❌ El objeto provider/bot no es válido o no tiene sendMessage');
         }
         const numero = target;
-        
+
         console.log(`[Flow] Buscando datos en Supabase para: "${programa}"...`);
         const targetProgram = findProgramFuzzy(programa);
 
@@ -389,13 +406,16 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         const saludo = `🎓 ¡Hola ${nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *${targetProgram ? targetProgram.nombre : programa}*.`;
         await provider.sendMessage(numero, saludo, {});
         await delay(3000);
-        
+
         // 2. Descripción y Perfil (De Supabase)
         if (targetProgram) {
             let detallesExtra = '';
             if (targetProgram.descripcion) detallesExtra += `\n*📖 Descripción:*\n${targetProgram.descripcion}\n`;
-            if (targetProgram.perfiles_programa) detallesExtra += `\n*🎯 Perfil del Egresado:*\n${targetProgram.perfiles_programa}\n`;
-            
+            if (targetProgram.perfiles_programa) {
+                const perfilFormat = formatSupabaseField(targetProgram.perfiles_programa);
+                detallesExtra += `\n*🎯 Perfil del Egresado:*\n${perfilFormat}\n`;
+            }
+
             if (detallesExtra) {
                 await provider.sendMessage(numero, `✨ *Conoce más de tu programa:*\n${detallesExtra}`, {});
                 await delay(3000);
@@ -424,10 +444,11 @@ ${groupLink}`;
 
         await provider.sendMessage(numero, infoText, {});
         await delay(2000);
-        
+
         // Malla Curricular
         if (targetProgram && targetProgram.malla_curricular) {
-            await provider.sendMessage(numero, `📚 *Malla Curricular:*\n${targetProgram.malla_curricular}`, {});
+            const mallaFormat = formatSupabaseField(targetProgram.malla_curricular);
+            await provider.sendMessage(numero, `📚 *Malla Curricular:*\n${mallaFormat}`, {});
             await delay(3000);
         }
 
@@ -457,6 +478,46 @@ ${groupLink}`;
             console.log(`[Flow] ⚠️ No se encontró brochure para: "${programa}".`);
             await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, por favor escríbeme el nombre exacto o solicita un asesor.`, {});
         }
+        await delay(2000);
+
+        // 4. Enviar los siguientes pasos
+        const pasosPostInscripcion = `📌 **¡Paso a paso para completar tu proceso de admisión!** 🎓✨
+
+**1️⃣ Realiza tu inscripción**
+Ingresa al siguiente enlace y completa tu registro con tus datos:
+👉 https://posgradounac.edu.pe/INSCRIPCION/
+
+**2️⃣ Realiza el pago por derecho de admisión** 💳
+
+El monto dependerá del programa al que postulas:
+🎓 **Maestría:** S/ 200
+📘 **Segunda Especialidad:** S/ 120
+🎖️ **Doctorado:** S/ 250
+
+💥 **Datos de la cuenta bancaria:**
+🏦 **Banco:** Scotiabank
+**Cuenta:** 000-3747336
+**CCI:** 009-100-000003747336-90
+
+⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
+
+**3️⃣ Revisa los requisitos de admisión** 📄
+
+Verifica la documentación que debes presentar según el programa al que postulas:
+👉 https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php
+
+**4️⃣ Sube tu expediente digital (GED)** 💻
+
+Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:
+👉 https://posgradounac.edu.pe/GED/login.php
+
+Solo necesitarás tu **DNI**, siempre que ya hayas realizado tu inscripción.
+
+**5️⃣ Verifica el estado de tu carpeta** ✅
+
+Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir.`;
+
+        await provider.sendMessage(numero, pasosPostInscripcion, {});
 
     } catch (err) { console.error('Error en procesarEnvioMensaje:', err) }
 }
@@ -469,42 +530,56 @@ const flowExpedienteProcesar = addKeyword(EVENTS.ACTION)
         const s = await state.getMyState();
         const dni = s.dni;
         await flowDynamic('⏳ Consultando tu expediente en nuestra base de datos... un momento.');
-        
+
         const result = await checkInscriptionByDni(dni);
         if (result.error) {
             await flowDynamic(`❌ ${result.error}`);
         } else {
+            // Saludo inicial y confirmación de inscripción
             await flowDynamic([
-                `✅ Hola *${result.nombres} ${result.apellidos}*, hemos encontrado tu información.`,
-                `🎓 *Programa:* ${result.programa}\n` +
-                `📄 *Estado de tu expediente:* ${result.mensajeExpediente}`
+                `✅ ¡Hola *${result.nombres} ${result.apellidos}*!`,
+                `🎓 Estás correctamente inscrito(a) en:\n*${result.programa}*`
             ]);
+
+            // Lógica de Expediente (Carpeta de Postulante)
+            if (!result.tieneExpediente) {
+                await flowDynamic([
+                    '⚠️ *FALTA SUBIR TU CARPETA DE POSTULANTE*',
+                    'Para continuar con tu proceso, debes subir tus documentos.',
+                    '👉 *Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:',
+                    '👉 https://posgradounac.edu.pe/GED/*',
+                    'Sube tu Carpeta de Postulante para que pueda ser evaluada por coordinación.'
+                ]);
+            } else {
+                const estado = String(result.idEstadoSeguimiento);
+                if (estado === '2') { // Observado
+                    await flowDynamic([
+                        '❌ *TU EXPEDIENTE TIENE UNA OBSERVACIÓN*',
+                        `*Detalle:* ${result.mensajeExpediente || 'Documentos incorrectos o ilegibles.'}`,
+                        '👉 *Acción requerida:* Ingresa de nuevo al sistema (https://posgradounac.edu.pe/GED/) y corrige los documentos observados.'
+                    ]);
+                } else if (estado === '3') { // Aceptado / Correcto
+                    await flowDynamic([
+                        '🎉 *¡TU EXPEDIENTE ESTÁ CORRECTO!*',
+                        'Tus documentos han sido aceptados.',
+                        '👉 *Siguiente paso:* Ingresa al sistema (https://posgradounac.edu.pe/GED/) para obtener el enlace y unirte al *Grupo de WhatsApp* de tu programa.'
+                    ]);
+                } else if (estado === '1' || estado === '4') { // Pendiente / En Evaluacion
+                    await flowDynamic([
+                        '⏳ *TU EXPEDIENTE ESTÁ EN EVALUACIÓN*',
+                        'Tu carpeta de postulante ya fue enviada y se encuentra a la espera de revisión.',
+                        '👉 Por favor, ten paciencia. Te notificaremos o puedes volver a consultar tu estado más adelante.'
+                    ]);
+                } else {
+                    await flowDynamic([
+                        '📄 *Estado de tu expediente:*',
+                        result.mensajeExpediente || 'En proceso de revisión.'
+                    ]);
+                }
+            }
         }
     });
 
-const flowExpediente = addKeyword([
-    'expediente', 'estado', 'verific', 'inscripc',
-    '^[0-9A-Za-z]{8,12}$'
-], { regex: true })
-    .addAction(async (ctx, { state, gotoFlow }) => {
-        const isDni = /^[0-9A-Za-z]{8,12}$/.test(ctx.body.trim());
-        if (isDni) {
-            await state.update({ dni: ctx.body.trim() });
-            return gotoFlow(flowExpedienteProcesar);
-        }
-    })
-    .addAnswer(
-        '🔍 *VERIFICACIÓN DE INSCRIPCIÓN Y EXPEDIENTE*\n\nPor favor, dime tu número de *DNI* para consultar tu registro:',
-        { capture: true },
-        async (ctx, { fallBack, state, gotoFlow }) => {
-            const dni = ctx.body.trim().replace(/\s+/g, '');
-            if (!/^[0-9A-Za-z]{8,15}$/.test(dni)) {
-                return fallBack('❌ DNI no válido. Por favor, escribe solo números y letras sin espacios.');
-            }
-            await state.update({ dni: dni });
-            return gotoFlow(flowExpedienteProcesar);
-        }
-    );
 
 const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
     .addAction(async (ctx, { flowDynamic, state, provider, gotoFlow, endFlow }) => {
@@ -525,8 +600,25 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
         // --- FIN CONTROL HANDOFF ---
 
-        let user = loadUserData(userId);
         const bodyLower = body.toLowerCase();
+
+        // --- DETECCIÓN AUTOMÁTICA DE DNI / EXPEDIENTE ---
+        const dniMatch = body.match(/\b\d{8}\b/);
+        const isDniOnly = /^\d{8}$/.test(body.replace(/\s+/g, ''));
+        const mentionsExpediente = bodyLower.includes('expediente') || bodyLower.includes('estado de mi') || bodyLower.includes('mi inscripci');
+
+        if (dniMatch && (isDniOnly || mentionsExpediente)) {
+            console.log(`[Flow] DNI detectado: ${dniMatch[0]}, redirigiendo a expediente...`);
+            await state.update({ dni: dniMatch[0] });
+            return gotoFlow(flowExpedienteProcesar);
+        }
+
+        if (mentionsExpediente && !dniMatch) {
+            return await flowDynamic('🔍 *VERIFICACIÓN DE EXPEDIENTE*\n\nPara consultar el estado de tu registro, por favor escríbeme únicamente tu número de *DNI* (8 dígitos).');
+        }
+        // --- FIN DETECCIÓN EXPEDIENTE ---
+
+        let user = loadUserData(userId);
         const cleanBody = normalizeReply(bodyLower);
         const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
@@ -543,7 +635,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         if (pendingBrochureSelections.has(userId)) {
             const pending = pendingBrochureSelections.get(userId);
             const selections = cleanBody.split(/[,\s]+/).map(s => parseInt(s.trim())).filter(n => !isNaN(n));
-            
+
             if (selections.length > 0 && selections.every(n => n >= 1 && n <= pending.length)) {
                 pendingBrochureSelections.delete(userId);
                 for (const num of selections) {
@@ -827,7 +919,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             // 7. Enviar Brochures automáticamente si se detectaron programas
             const programsInResponse = findPrograms(response || '');
             const allMatchedPrograms = [...(programsMatch || []), ...(programsInResponse || [])];
-            
+
             // Eliminar duplicados
             const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.nombre)))
                 .map(nombre => allMatchedPrograms.find(p => p.nombre === nombre))
@@ -854,9 +946,9 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 // Múltiples programas → mostrar lista y esperar selección
                 console.log(`[Flow] ${programsWithBrochure.length} brochures encontrados. Mostrando lista.`);
                 const listItems = programsWithBrochure.map((p, i) => `*${i + 1}.* ${p.nombre}`).join('\n');
-                
+
                 pendingBrochureSelections.set(userId, programsWithBrochure);
-                
+
                 await delay(1000);
                 await flowDynamic(
                     `📋 Encontré *${programsWithBrochure.length} brochures* disponibles:\n\n` +
@@ -911,13 +1003,56 @@ const processApiQueue = async (provider) => {
     isProcessingQueue = false;
 };
 
+const flowPasosInscripcion = addKeyword([
+    'pasos', 'inscribirme', 'inscribirse', 'proceso', 'como hago para inscribirme', 'como me inscribo'
+], { regex: false })
+    .addAction(async (ctx, { flowDynamic }) => {
+        const respuesta = `📌 **¡Paso a paso para completar tu proceso de admisión!** 🎓✨
 
+**1️⃣ Realiza tu inscripción**
+Ingresa al siguiente enlace y completa tu registro con tus datos:
+👉 https://posgradounac.edu.pe/INSCRIPCION/
+
+**2️⃣ Realiza el pago por derecho de admisión** 💳
+
+El monto dependerá del programa al que postulas:
+🎓 **Maestría:** S/ 200
+📘 **Segunda Especialidad:** S/ 120
+🎖️ **Doctorado:** S/ 250
+
+💥 **Datos de la cuenta bancaria:**
+🏦 **Banco:** Scotiabank
+**Cuenta:** 000-3747336
+**CCI:** 009-100-000003747336-90
+
+⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
+
+**3️⃣ Revisa los requisitos de admisión** 📄
+
+Verifica la documentación que debes presentar según el programa al que postulas:
+👉 https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php
+
+**4️⃣ Sube tu expediente digital (GED)** 💻
+
+Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:
+👉 https://posgradounac.edu.pe/GED/login.php
+
+Solo necesitarás tu **DNI**, siempre que ya hayas realizado tu inscripción.
+
+**5️⃣ Verifica el estado de tu carpeta** ✅
+
+Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir.`;
+
+        // Loguear interacción para entrenamiento
+        await logInteraction(ctx.from, ctx.body, respuesta, null, 'catalog');
+        return await flowDynamic(respuesta);
+    });
 
 const main = async () => {
     console.log('[Bot] Inicializando catálogo desde Supabase...');
     await initCatalog();
 
-    const adapterFlow = createFlow([resetFlow, welcomeFlow, solicitudAsesorFlow, mediaFlow])
+    const adapterFlow = createFlow([resetFlow, flowPasosInscripcion, flowExpedienteProcesar, welcomeFlow, solicitudAsesorFlow, mediaFlow])
     const adapterProvider = createProvider(Provider);
     const adapterDB = new Database();
 

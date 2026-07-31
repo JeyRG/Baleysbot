@@ -1,9 +1,9 @@
 {
   "total": {
-    "prompt_tokens": 1453,
-    "completion_tokens": 447,
-    "total_tokens": 1900,
-    "requests": 8
+    "prompt_tokens": 2307,
+    "completion_tokens": 477,
+    "total_tokens": 2784,
+    "requests": 10
   },
   "days": {
     "2026-07-30": {
@@ -16,12 +16,12 @@
       }
     },
     "2026-07-31": {
-      "prompt_tokens": 414,
-      "completion_tokens": 14,
-      "total_tokens": 428,
-      "requests": 1,
+      "prompt_tokens": 1268,
+      "completion_tokens": 44,
+      "total_tokens": 1312,
+      "requests": 3,
       "models": {
-        "llama-3.1-8b-instant": 1
+        "llama-3.1-8b-instant": 3
       }
     }
   }
