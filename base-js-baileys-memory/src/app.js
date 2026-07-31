@@ -499,6 +499,9 @@ El monto dependerá del programa al que postulas:
 **Cuenta:** 000-3747336
 **CCI:** 009-100-000003747336-90
 
+ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II
+👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl
+
 ⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
 
 **3️⃣ Revisa los requisitos de admisión** 📄
@@ -734,7 +737,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const matchedProgram = findProgram(body);
         const facultyMatch = findFaculty(body);
 
-        if (isCategoryOnlyRequest(bodyLower, categoryIntent)) {
+        if (!matchedProgram && matchedPrograms.length === 0 && isCategoryOnlyRequest(bodyLower, categoryIntent)) {
             const list = getContextForCategory(categoryIntent);
             console.log(`[Flow] Consulta de categoría prioritaria detectada: ${categoryIntent}`);
             // Loguear interacción
@@ -1024,6 +1027,9 @@ El monto dependerá del programa al que postulas:
 🏦 **Banco:** Scotiabank
 **Cuenta:** 000-3747336
 **CCI:** 009-100-000003747336-90
+
+ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II
+👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl
 
 ⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
 

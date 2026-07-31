@@ -52,7 +52,7 @@ nano .env
 # SUPABASE_DATA_KEY=tu_data_key
 
 # Iniciar el bot con PM2
-pm2 start src/app.js --name "whatsapp-bot"
+pm2 start src/app.js --name "BotW"cd..
 
 --------------------------------------------------------------------
 4. CONFIGURACIÓN DEL DASHBOARD (Frontend)
