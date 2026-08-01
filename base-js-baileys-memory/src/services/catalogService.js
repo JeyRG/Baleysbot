@@ -286,50 +286,70 @@ export const findCategory = (query) => {
 }
 
 /**
- * Genera un mensaje con TODOS los programas de una categoría específica.
+ * Genera un menú numerado con las facultades de una categoría específica.
  */
 export const getContextForCategory = (category) => {
     const catalog = getCatalog()
-    if (!catalog || !category) return ""
+    if (!catalog || !category) return null;
 
     const tipoInfo = getTipoProgramaInfo(category);
     const categoryLabel = category === 'maestrias' ? 'MAESTRÍAS' :
         category === 'doctorados' ? 'DOCTORADOS' :
             category === 'especialidades' ? 'SEGUNDAS ESPECIALIDADES' : category.toUpperCase();
 
-    let ctx = `🎓 *LISTA DE ${categoryLabel} - UNAC*\n\n`
+    let ctx = `🎓 *${categoryLabel} - UNAC*\n\n`;
 
     // Agregar datos del tipo si existen
     if (tipoInfo) {
         if (tipoInfo.duracion) ctx += `⏳ *Duración:* ${tipoInfo.duracion}\n`;
-        if (tipoInfo.costos) ctx += `💰 *Costos:* ${tipoInfo.costos}\n`;
-        if (tipoInfo.creditos) ctx += `📚 *Créditos:* ${tipoInfo.creditos}\n`;
+        if (tipoInfo.costos) ctx += `💰 *Inscripción:* ${tipoInfo.costos}\n`;
         ctx += '\n';
     }
 
-    let programCount = 0;
+    ctx += `Por favor, elige una Facultad ingresando el *número* correspondiente:\n\n`;
+
+    const faculties = [];
+    let idx = 1;
     for (const facultyId in catalog) {
         const facultad = catalog[facultyId]
-        if (facultad[category]) {
-            const progs = Object.values(facultad[category]);
-            if (progs.length > 0) {
-                ctx += `🏢 *${facultad.nombre}:*\n`
-                progs.forEach(p => {
-                    ctx += `• ${p.nombre}\n`;
-                    programCount++;
-                });
-                ctx += `\n`
-            }
+        if (facultad[category] && Object.keys(facultad[category]).length > 0) {
+            ctx += `*${idx}.* ${facultad.nombre}\n`;
+            faculties.push(facultad.nombre);
+            idx++;
         }
     }
 
-    if (programCount === 0) {
-        return `No se encontraron programas en la categoría ${categoryLabel}.`;
+    if (faculties.length === 0) {
+        return { text: `No se encontraron programas en la categoría ${categoryLabel}.`, faculties: [] };
     }
 
-    ctx += `📊 *Total:* ${programCount} programas\n\n`;
-    ctx += `¿Deseas información de algún programa en específico? Te envío el brochure oficial 📄✨`
-    return ctx
+    ctx += `\n*0.* Cancelar`;
+    
+    return { text: ctx, faculties, category };
+}
+
+/**
+ * Obtiene los programas de una facultad y categoría específicas (para cuando el usuario elige un número)
+ */
+export const getProgramsForFacultyCategory = (facultyName, category) => {
+    const catalog = getCatalog();
+    if (!catalog || !category || !facultyName) return "";
+
+    for (const facultyId in catalog) {
+        if (catalog[facultyId].nombre === facultyName) {
+            const facultad = catalog[facultyId];
+            if (facultad[category]) {
+                const progs = Object.values(facultad[category]);
+                let ctx = `🏢 *${facultad.nombre}:*\n\n`;
+                progs.forEach(p => {
+                    ctx += `• ${p.nombre}\n`;
+                });
+                ctx += `\n¿Deseas información de alguno en específico? Solo escribe su nombre. 📄✨`;
+                return ctx;
+            }
+        }
+    }
+    return "No se encontraron programas en esa facultad.";
 }
 
 /**

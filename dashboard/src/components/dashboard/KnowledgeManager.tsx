@@ -32,15 +32,17 @@ export default function KnowledgeManager() {
   const [chunks, setChunks] = useState<KnowledgeChunk[]>([]);
   const [unresolved, setUnresolved] = useState<UnresolvedQuery[]>([]);
   const [cache, setCache] = useState<any[]>([]);
+  const [interactions, setInteractions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [editingChunk, setEditingChunk] = useState<KnowledgeChunk | null>(null);
   const [editingCache, setEditingCache] = useState<any | null>(null);
+  const [editingInteraction, setEditingInteraction] = useState<any | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [newContent, setNewContent] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'trained' | 'pending' | 'cache'>('trained');
+  const [activeTab, setActiveTab] = useState<'trained' | 'pending' | 'cache' | 'interactions'>('trained');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [isImporting, setIsImporting] = useState(false);
@@ -89,10 +91,19 @@ export default function KnowledgeManager() {
     }
   };
 
+  const fetchInteractions = async () => {
+    try {
+      const res = await fetch(`${botUrl}/bot/responses-review?reviewed=false&limit=50`);
+      if (res.ok) setInteractions(await res.json());
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchKnowledge(), fetchUnresolved(), fetchCache()]);
+      await Promise.all([fetchKnowledge(), fetchUnresolved(), fetchCache(), fetchInteractions()]);
       setLoading(false);
     };
     init();
@@ -126,8 +137,20 @@ export default function KnowledgeManager() {
     );
   }, [cache, searchTerm]);
 
+  const filteredInteractions = useMemo(() => {
+    if (!searchTerm.trim()) return interactions;
+    const q = searchTerm.toLowerCase();
+    return interactions.filter(item =>
+      item.user_query?.toLowerCase().includes(q) ||
+      item.bot_response?.toLowerCase().includes(q)
+    );
+  }, [interactions, searchTerm]);
+
   // Current tab's filtered data
-  const currentData = activeTab === 'trained' ? filteredChunks : activeTab === 'pending' ? filteredUnresolved : filteredCache;
+  const currentData = activeTab === 'trained' ? filteredChunks 
+    : activeTab === 'pending' ? filteredUnresolved 
+    : activeTab === 'interactions' ? filteredInteractions 
+    : filteredCache;
   const totalPages = Math.max(1, Math.ceil(currentData.length / PAGE_SIZE));
   const paginatedData = currentData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
@@ -135,6 +158,7 @@ export default function KnowledgeManager() {
   const resolvedCount = chunks.length;
   const pendingCount = unresolved.length;
   const cacheCount = cache.length;
+  const reviewCount = interactions.length;
   const resolutionRate = resolvedCount + pendingCount > 0
     ? Math.round((resolvedCount / (resolvedCount + pendingCount)) * 100)
     : 100;
@@ -149,6 +173,8 @@ export default function KnowledgeManager() {
 
       if (resolvingId) {
         url = `${botUrl}/bot/resolve`;
+      } else if (editingInteraction) {
+        url = `${botUrl}/bot/responses-review/${editingInteraction.id}/correct`;
       } else if (editingChunk) {
         url = `${botUrl}/bot/knowledge/${editingChunk.id}`;
         method = 'PUT';
@@ -162,6 +188,8 @@ export default function KnowledgeManager() {
       const body: any = {};
       if (activeTab === 'cache' || editingCache) {
         body.answer = newContent;
+      } else if (editingInteraction) {
+        body.corrected_response = newContent;
       } else {
         body.content = newContent;
         body.metadata = { category: selectedCategory };
@@ -182,12 +210,14 @@ export default function KnowledgeManager() {
       setNewContent('');
       setEditingChunk(null);
       setEditingCache(null);
+      setEditingInteraction(null);
       setResolvingId(null);
       setSelectedCategory('');
-      await Promise.all([fetchKnowledge(), fetchUnresolved(), fetchCache()]);
+      await Promise.all([fetchKnowledge(), fetchUnresolved(), fetchCache(), fetchInteractions()]);
 
       showToast(
         resolvingId ? 'Duda resuelta y bot entrenado ✅' :
+        editingInteraction ? 'Respuesta corregida y aprendida ✅' :
         editingChunk ? 'Fragmento actualizado correctamente' :
         editingCache ? 'Respuesta de caché actualizada' :
         'Nuevo conocimiento añadido al bot 🧠',
@@ -237,6 +267,7 @@ export default function KnowledgeManager() {
     setResolvingId(item.id);
     setEditingChunk(null);
     setEditingCache(null);
+    setEditingInteraction(null);
     setNewContent(`Pregunta del usuario: ${item.query}\n\nRespuesta recomendada: `);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -244,14 +275,41 @@ export default function KnowledgeManager() {
   const startEditingCache = (item: any) => {
     setEditingCache(item);
     setEditingChunk(null);
+    setEditingInteraction(null);
     setResolvingId(null);
     setNewContent(item.answer);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const startEditingInteraction = (item: any) => {
+    setEditingInteraction(item);
+    setEditingCache(null);
+    setEditingChunk(null);
+    setResolvingId(null);
+    setNewContent(item.bot_response || '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const approveInteraction = async (id: string) => {
+    try {
+      const res = await fetch(`${botUrl}/bot/responses-review/${id}/approve`, { method: 'POST' });
+      if (res.ok) {
+        showToast('Respuesta aprendida exitosamente', 'success');
+        fetchInteractions();
+        fetchCache();
+      } else {
+        showToast('Hubo un error al aprobar', 'error');
+      }
+    } catch (error) {
+      console.error(error);
+      showToast('Error de conexión', 'error');
+    }
+  };
+
   const startEditingChunk = (chunk: KnowledgeChunk) => {
     setEditingChunk(chunk);
     setEditingCache(null);
+    setEditingInteraction(null);
     setResolvingId(null);
     setNewContent(chunk.content);
     setSelectedCategory(chunk.metadata?.category || '');
@@ -261,6 +319,7 @@ export default function KnowledgeManager() {
   const resetForm = () => {
     setEditingChunk(null);
     setEditingCache(null);
+    setEditingInteraction(null);
     setResolvingId(null);
     setNewContent('');
     setSelectedCategory('');
@@ -379,8 +438,8 @@ export default function KnowledgeManager() {
         {[
           { label: 'Base de Conocimiento', value: resolvedCount, icon: '🧠', gradient: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20' },
           { label: 'Dudas Pendientes', value: pendingCount, icon: '❓', gradient: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-500/20' },
+          { label: 'Revisión Pendiente', value: reviewCount, icon: '👀', gradient: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-500/20' },
           { label: 'Memoria Aprendida', value: cacheCount, icon: '💾', gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-violet-500/20' },
-          { label: 'Tasa Resolución', value: `${resolutionRate}%`, icon: '📊', gradient: 'from-emerald-500 to-teal-600', shadow: 'shadow-emerald-500/20' },
         ].map((kpi, idx) => (
           <div key={idx} className="glass-panel rounded-2xl p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 group">
             <div className="flex items-center gap-3">
@@ -401,20 +460,29 @@ export default function KnowledgeManager() {
         <div className="lg:col-span-1">
           <div className="glass-panel rounded-3xl p-6 border border-border shadow-xl sticky top-8">
             <h3 className="text-lg font-bold text-foreground mb-5 flex items-center gap-2">
-              {resolvingId ? '🎯 Resolver Duda' : editingChunk ? '✏️ Corregir Base' : editingCache ? '✏️ Editar Memoria' : '➕ Añadir Base'}
+              {resolvingId ? '🎯 Resolver Duda' : editingChunk ? '✏️ Corregir Base' : editingCache ? '✏️ Editar Memoria' : editingInteraction ? '✏️ Enseñar Respuesta' : '➕ Añadir Base'}
               <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
             </h3>
 
             <div className="space-y-4">
-              {editingCache && (
-                <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 font-medium">
-                  <span className="font-black block mb-1">Pregunta del usuario:</span>
-                  &quot;{editingCache.question}&quot;
+              {(editingCache || editingInteraction) && (
+                <div className="space-y-2">
+                  <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-200 dark:border-blue-500/20 text-xs text-blue-700 dark:text-blue-300 font-medium">
+                    <span className="font-black block mb-1">🙋 Pregunta del usuario:</span>
+                    &quot;{editingCache ? editingCache.question : editingInteraction?.user_query}&quot;
+                  </div>
+                  {editingInteraction?.bot_response && (
+                    <div className="p-3 bg-rose-50 dark:bg-rose-500/10 rounded-xl border border-rose-200 dark:border-rose-500/20 text-xs text-rose-700 dark:text-rose-300">
+                      <span className="font-black block mb-1">🤖 Respuesta actual del bot:</span>
+                      <span className="italic leading-relaxed">{editingInteraction.bot_response}</span>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold px-1">✏️ Escribe la respuesta CORRECTA abajo ↓</p>
                 </div>
               )}
 
               {/* Category selector (only for knowledge base) */}
-              {!editingCache && activeTab !== 'cache' && (
+              {!editingCache && !editingInteraction && activeTab !== 'cache' && activeTab !== 'interactions' && (
                 <div>
                   <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mb-2 block px-1">
                     Categoría
@@ -439,12 +507,12 @@ export default function KnowledgeManager() {
 
               <div>
                 <label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest mb-2 block px-1">
-                  {editingCache ? 'Respuesta del Bot' : 'Texto de Entrenamiento'}
+                  {editingCache || editingInteraction ? 'Respuesta Correcta del Bot' : 'Texto de Entrenamiento'}
                 </label>
                 <textarea
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
-                  placeholder={editingCache ? "Modifica cómo debe responder el bot..." : "Escribe información para la base de conocimientos..."}
+                  placeholder={editingCache || editingInteraction ? "Escribe la mejor respuesta para esta pregunta..." : "Escribe información para la base de conocimientos..."}
                   className="w-full h-64 p-4 bg-secondary border-0 rounded-2xl text-sm text-foreground focus:ring-2 focus:ring-primary/20 transition-all resize-none outline-none placeholder:text-muted-foreground"
                 />
                 <p className="text-[10px] text-muted-foreground mt-1 px-1 tabular-nums">{newContent.length} caracteres</p>
@@ -455,10 +523,10 @@ export default function KnowledgeManager() {
                 disabled={isSaving || !newContent.trim()}
                 className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all shadow-lg ${isSaving || !newContent.trim() ? 'bg-muted text-muted-foreground cursor-not-allowed shadow-none' : 'bg-primary text-primary-foreground hover:opacity-90 shadow-primary/20'}`}
               >
-                {isSaving ? 'Guardando...' : resolvingId ? '✓ Completar' : editingChunk ? 'Actualizar' : editingCache ? 'Guardar Cambios' : '🧠 Entrenar Bot'}
+                {isSaving ? 'Guardando...' : resolvingId ? '✓ Completar' : editingChunk ? 'Actualizar' : (editingCache || editingInteraction) ? 'Guardar Cambios' : '🧠 Entrenar Bot'}
               </button>
 
-              {(editingChunk || resolvingId || editingCache) && (
+              {(editingChunk || resolvingId || editingCache || editingInteraction) && (
                 <button
                   onClick={resetForm}
                   className="w-full py-2.5 text-muted-foreground text-xs font-bold hover:text-foreground transition-colors"
@@ -487,6 +555,13 @@ export default function KnowledgeManager() {
               >
                 DUDAS
                 {unresolved.length > 0 && <span className="w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
+              </button>
+              <button
+                onClick={() => setActiveTab('interactions')}
+                className={`px-4 py-2 rounded-lg text-[10px] font-black transition-all flex items-center gap-1.5 ${activeTab === 'interactions' ? 'bg-card text-amber-600 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+              >
+                REVISIÓN
+                {interactions.length > 0 && <span className="w-2 h-2 bg-amber-500 rounded-full animate-ping"></span>}
               </button>
               <button
                 onClick={() => setActiveTab('cache')}
@@ -542,6 +617,12 @@ export default function KnowledgeManager() {
                       <th className="px-6 py-3.5 text-left text-[10px] uppercase font-black text-muted-foreground tracking-widest">Duda sin Respuesta</th>
                       <th className="px-6 py-3.5 text-center text-[10px] uppercase font-black text-muted-foreground tracking-widest w-24">Tiempo</th>
                       <th className="px-6 py-3.5 text-right text-[10px] uppercase font-black text-muted-foreground tracking-widest w-24">Acciones</th>
+                    </tr>
+                  ) : activeTab === 'interactions' ? (
+                    <tr>
+                      <th className="px-6 py-3.5 text-left text-[10px] uppercase font-black text-muted-foreground tracking-widest w-1/3">Pregunta del Usuario</th>
+                      <th className="px-6 py-3.5 text-left text-[10px] uppercase font-black text-muted-foreground tracking-widest">Respuesta del Bot</th>
+                      <th className="px-6 py-3.5 text-right text-[10px] uppercase font-black text-muted-foreground tracking-widest w-32">Revisión</th>
                     </tr>
                   ) : (
                     <tr>
@@ -612,6 +693,50 @@ export default function KnowledgeManager() {
                         </td>
                       </tr>
                     ))
+                  ) : activeTab === 'interactions' ? (
+                    (paginatedData as any[]).map((item) => {
+                      const botRespLen = (item.bot_response || '').length;
+                      const responseQuality = botRespLen > 150 ? { label: 'Completa', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20' }
+                        : botRespLen > 40 ? { label: 'Corta', color: 'text-amber-600 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/20' }
+                        : { label: 'Incompleta', color: 'text-rose-600 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-500/20' };
+                      return (
+                        <tr key={item.id} className="group hover:bg-amber-500/5 transition-colors">
+                          <td className="px-6 py-4 align-top">
+                            <p className="text-sm text-foreground font-bold italic leading-snug">&quot;{item.user_query}&quot;</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">{timeAgo(item.created_at)}</p>
+                            <span className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground mt-1 inline-block">{item.source || 'grok'}</span>
+                          </td>
+                          <td className="px-6 py-4 align-top">
+                            <div className={`mb-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold border ${responseQuality.color}`}>
+                              {responseQuality.label === 'Completa' ? '✅' : responseQuality.label === 'Corta' ? '⚠️' : '❌'} {responseQuality.label}
+                            </div>
+                            <p className="text-sm text-muted-foreground line-clamp-3 group-hover:line-clamp-none transition-all duration-300 leading-relaxed">
+                              {item.bot_response || <span className="italic text-rose-400">(Sin respuesta)</span>}
+                            </p>
+                          </td>
+                          <td className="px-6 py-4 align-top">
+                            <div className="flex flex-col gap-2 items-stretch min-w-[110px]">
+                              <button
+                                onClick={() => approveInteraction(item.id)}
+                                title="La respuesta del bot es correcta. Se guardará en la memoria para futuras preguntas similares."
+                                className="px-3 py-2 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-600 active:scale-95 transition-all shadow-md shadow-emerald-500/20 text-center flex items-center justify-center gap-1.5"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                Correcta
+                              </button>
+                              <button
+                                onClick={() => startEditingInteraction(item)}
+                                title="La respuesta del bot tiene errores. Escribe la respuesta correcta para entrenar al bot."
+                                className="px-3 py-2 bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500 hover:text-white hover:border-amber-500 text-[10px] font-black uppercase tracking-widest rounded-xl active:scale-95 transition-all text-center flex items-center justify-center gap-1.5"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                                Corregir
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     (paginatedData as any[]).map((item) => {
                       const quality = getQualityIndicator(item.answer);

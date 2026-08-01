@@ -16,7 +16,7 @@ import { getGrokCompletion as originalGetGrokCompletion, getTokenUsageSummary } 
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
 import { checkInscriptionByDni } from './services/inscriptionService.js'
-import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok } from './services/catalogService.js'
+import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok, getProgramsForFacultyCategory } from './services/catalogService.js'
 import { getRAGContext } from './services/knowledgeService.js'
 
 import { fileURLToPath } from 'url';
@@ -76,8 +76,27 @@ function buildProgramDetailMessage(program) {
         lines.push(`📖 *Descripción:* ${program.descripcion}`);
     }
 
+    // Inyectar Costos y Requisitos
+    if (program.tipo) {
+        const tipoInfo = getTipoProgramaInfo(program.tipo);
+        if (tipoInfo) {
+            let extraInfo = '';
+            if (tipoInfo.duracion) extraInfo += `⏳ *Duración:* ${tipoInfo.duracion}\n`;
+            if (tipoInfo.costos) extraInfo += `💰 *Costo Inscripción:* ${tipoInfo.costos}\n`;
+            if (tipoInfo.costo_ciclo) extraInfo += `💵 *Costo por Ciclo:* ${tipoInfo.costo_ciclo}\n`;
+            
+            if (extraInfo) {
+                lines.push(`---\n${extraInfo.trim()}`);
+            }
+
+            if (tipoInfo.requisitos) {
+                lines.push(`---\n📄 *Requisitos Generales:*\n${tipoInfo.requisitos}`);
+            }
+        }
+    }
+
     if (program.perfiles_programa) {
-        lines.push(`🎯 *Perfil del egresado:* ${formatProgramField(program.perfiles_programa)}`);
+        lines.push(`---\n🎯 *Perfil del egresado:* ${formatProgramField(program.perfiles_programa)}`);
     }
 
     return lines.join('\n\n');
@@ -179,6 +198,45 @@ function isCategoryOnlyRequest(bodyLower, categoryIntent) {
 // Mapa de selecciones pendientes de brochures por usuario
 const pendingBrochureSelections = new Map();
 
+// Mapa de selecciones de menú interactivo de facultades
+const pendingCategoryMenuSelections = new Map();
+
+// --- Rate Limiting (Anti-Spam) ---
+const rateLimits = new Map();
+const RATE_LIMIT_WINDOW = 30000; // 30 segundos
+const MAX_MESSAGES_PER_WINDOW = 5;
+
+function checkRateLimit(userId) {
+    const now = Date.now();
+    const userLimit = rateLimits.get(userId) || { count: 0, startTime: now, warned: false };
+
+    if (now - userLimit.startTime > RATE_LIMIT_WINDOW) {
+        userLimit.count = 1;
+        userLimit.startTime = now;
+        userLimit.warned = false;
+    } else {
+        userLimit.count++;
+    }
+
+    rateLimits.set(userId, userLimit);
+
+    if (userLimit.count > MAX_MESSAGES_PER_WINDOW) {
+        return { isSpam: true, shouldWarn: !userLimit.warned, limitRef: userLimit };
+    }
+    return { isSpam: false };
+}
+
+// --- Cron Job (Limpieza de inactivos) ---
+setInterval(async () => {
+    try {
+        console.log('[Cron] Ejecutando reset_inactive_conversations...');
+        const { error } = await supabase.rpc('reset_inactive_conversations', { timeout_minutes: 240 });
+        if (error) console.error('[Cron] Error al limpiar inactivos:', error);
+    } catch (e) {
+        console.error('[Cron] Excepción:', e);
+    }
+}, 60 * 60 * 1000); // Cada 1 hora
+
 // Handlers globales
 process.on('uncaughtException', (err) => console.error('Uncaught Exception:', err));
 process.on('unhandledRejection', (reason) => console.error('Unhandled Rejection:', reason));
@@ -262,9 +320,19 @@ const saveToCache = async (question, answer, embedding) => {
 const getGrokCompletion = async (userName, message, context = '', options = {}) => {
     try {
         const cleanContext = compactContext(context, options.maxContextChars ?? 900);
-        const systemPrompt = `Asesor UNAC de posgrado. Responde breve, claro y solo con datos del contexto si existe. Usa máximo 1-2 frases. Si falta info o piden humano: [SOLICITUD_ASESOR]. No menciones otras universidades.`
+        const systemPrompt = `Eres el Asesor Académico Virtual de la Escuela de Posgrado de la UNAC (Universidad Nacional del Callao).
 
-        const messages = [{ role: 'system', content: cleanContext ? `${systemPrompt}\nContexto: ${cleanContext}` : systemPrompt }, { role: 'user', content: message }];
+REGLAS ESTRICTAS:
+1. Responde SOLO con datos del contexto proporcionado. NUNCA inventes cifras, fechas ni requisitos.
+2. Si el contexto tiene costos → úsalos exactamente. No modifiques las cifras.
+3. Si preguntan por fechas → da exactamente las del contexto. Si no están → di que consulten a coordinación.
+4. Si preguntan por requisitos → lista los del contexto numerados y ordenados.
+5. Responde en máximo 3-4 líneas concisas. Sé directo.
+6. Si la información no está en el contexto → responde [SOLICITUD_ASESOR].
+7. No menciones otras universidades. No compares precios.
+8. Trato cordial, usa emojis solo para claridad.`
+
+        const messages = [{ role: 'system', content: cleanContext ? `${systemPrompt}\n\nContexto disponible:\n${cleanContext}` : systemPrompt }, { role: 'user', content: message }];
 
         const grokResponse = await originalGetGrokCompletion(messages, {
             maxTokens: options.maxTokens ?? 180,
@@ -590,6 +658,16 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const body = ctx.body?.trim() || '';
         if (!body) return;
 
+        // --- RATE LIMITING (Anti-Spam) ---
+        const rateLimitResult = checkRateLimit(userId);
+        if (rateLimitResult.isSpam) {
+            if (rateLimitResult.shouldWarn) {
+                return await flowDynamic("⚠️ *Por favor, no envíes mensajes tan rápido.* Espera unos segundos e intenta nuevamente.");
+            }
+            return endFlow(); // Ignorar silenciosamente
+        }
+        // --- FIN RATE LIMITING ---
+
         // --- INICIO CONTROL HANDOFF (DASHBOARD) ---
         const { data: convData } = await supabase
             .from('conversations')
@@ -605,10 +683,12 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
         const bodyLower = body.toLowerCase();
 
-        // --- DETECCIÓN AUTOMÁTICA DE DNI / EXPEDIENTE ---
+        // --- DETECCIÓN AUTOMÁTICA DE DNI / EXPEDIENTE / INSCRIPCIÓN ---
         const dniMatch = body.match(/\b\d{8}\b/);
         const isDniOnly = /^\d{8}$/.test(body.replace(/\s+/g, ''));
-        const mentionsExpediente = bodyLower.includes('expediente') || bodyLower.includes('estado de mi') || bodyLower.includes('mi inscripci');
+
+        // Detectar intención de verificar expediente o inscripción con frases naturales
+        const mentionsExpediente = /(expediente|estado de mi|mi inscripci|verificar.*inscripci|verificar.*expediente|consultar.*inscripci|consultar.*expediente|revisar.*expediente|revisar.*inscripci|ver.*estado|mi.*estado|saber.*si.*estoy|estoy.*inscrito|inscripcion.*activa|fui.*admitido|admitido|si me.*inscrib)/i.test(bodyLower);
 
         if (dniMatch && (isDniOnly || mentionsExpediente)) {
             console.log(`[Flow] DNI detectado: ${dniMatch[0]}, redirigiendo a expediente...`);
@@ -617,7 +697,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
 
         if (mentionsExpediente && !dniMatch) {
-            return await flowDynamic('🔍 *VERIFICACIÓN DE EXPEDIENTE*\n\nPara consultar el estado de tu registro, por favor escríbeme únicamente tu número de *DNI* (8 dígitos).');
+            return await flowDynamic('🔍 *VERIFICACIÓN DE EXPEDIENTE E INSCRIPCIÓN*\n\nPuedo consultarte el estado de tu inscripción y el avance de tu carpeta de postulante.\n\nPor favor, escríbeme tu número de *DNI* (8 dígitos) para continuar.');
         }
         // --- FIN DETECCIÓN EXPEDIENTE ---
 
@@ -686,6 +766,31 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             pendingBrochureSelections.delete(userId);
         }
 
+        // 1.5.1 Confirmación de menú interactivo (Facultades)
+        if (pendingCategoryMenuSelections.has(userId)) {
+            const menuData = pendingCategoryMenuSelections.get(userId);
+            if (/^\d+$/.test(cleanBody)) {
+                const index = parseInt(cleanBody, 10);
+                if (index === 0) {
+                    pendingCategoryMenuSelections.delete(userId);
+                    return await flowDynamic('✅ Menú cancelado. ¿En qué más puedo ayudarte?');
+                } else if (index > 0 && index <= menuData.faculties.length) {
+                    const selectedFaculty = menuData.faculties[index - 1];
+                    const programsList = getProgramsForFacultyCategory(selectedFaculty, menuData.category);
+                    pendingCategoryMenuSelections.delete(userId);
+                    return await flowDynamic(programsList);
+                } else {
+                    return await flowDynamic(`❌ Número inválido. Por favor, elige un número del 1 al ${menuData.faculties.length}, o 0 para cancelar.`);
+                }
+            }
+            if (['cancelar', 'salir', 'no', 'ninguno'].includes(cleanBody)) {
+                pendingCategoryMenuSelections.delete(userId);
+                return await flowDynamic('✅ Menú cancelado. ¿En qué más puedo ayudarte?');
+            }
+            // Si escribe otra cosa que no sea número, lo limpiamos y dejamos que el flujo normal responda
+            pendingCategoryMenuSelections.delete(userId);
+        }
+
         // 1.6. Confirmación pendiente para enviar información completa de un programa
         if (pendingProgramInfoSelections.has(userId)) {
             const pending = pendingProgramInfoSelections.get(userId);
@@ -726,9 +831,14 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         if (categoriesSolo.includes(bodyLower)) {
             const cat = findCategory(bodyLower);
             if (cat) {
-                const list = getContextForCategory(cat);
-                console.log(`[Flow] Respuesta directa de categoría: ${cat}`);
-                return await flowDynamic(list);
+                const menuObj = getContextForCategory(cat);
+                if (menuObj && typeof menuObj === 'object') {
+                    pendingCategoryMenuSelections.set(userId, menuObj);
+                    console.log(`[Flow] Menú interactivo de categoría enviado: ${cat}`);
+                    return await flowDynamic(menuObj.text);
+                } else {
+                    return await flowDynamic(menuObj || `No se encontraron programas.`);
+                }
             }
         }
 
@@ -737,12 +847,84 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const matchedProgram = findProgram(body);
         const facultyMatch = findFaculty(body);
 
+        // --- DETECCIÓN DE INTENCIONES ESPECÍFICAS (RESPUESTA DIRECTA SIN LLM) ---
+        const asksCost = /\b(costo|cuesta|precio|pago|monto|cuanto|cuánto|tarifa|arancel|valor|pagar|banco|cuenta|cci)\b/i.test(bodyLower);
+        const asksReqs = /\b(requisito|documento|necesito para|que piden|que se pide|que solicitan|qué necesito|qué debo presentar|documentos)\b/i.test(bodyLower);
+        const asksDates = /\b(fecha|cuando|cuándo|plazo|inicio|inicio de clases|cronograma|calendario|admision|admisión|cierre|inscripcion cierra)\b/i.test(bodyLower);
+        const asksModality = /\b(modalidad|presencial|virtual|distancia|hibrido|híbrido|clases|como son las clases|como funciona)\b/i.test(bodyLower);
+        const asksDuration = /\b(cuanto dura|cuánto dura|duración|duracion|cuantos años|cuántos años|cuantos semestres|ciclos|semestres|tiempo)\b/i.test(bodyLower)
+            && /\b(maestria|doctorado|especialidad|programa|posgrado)\b/i.test(bodyLower);
+        const asksNextSteps = /\b(que hago|qué hago|que sigue|qué sigue|ahora que|ya (pague|pagué|me inscribi|me inscribí)|pasos a seguir|cual es el siguiente paso)\b/i.test(bodyLower);
+
+        // Respuesta directa de "Qué hacer después"
+        if (asksNextSteps && !matchedProgram) {
+            const msg = `🎓 *PASOS PARA TU ADMISIÓN - UNAC*\n\nSi ya te decidiste por un programa, estos son los pasos:\n\n1️⃣ *Paga el derecho de admisión* en el Banco Scotiabank.\n2️⃣ *Inscríbete online* en el portal oficial.\n3️⃣ *Sube tus documentos* a la plataforma GED: https://posgradounac.edu.pe/GED/\n4️⃣ *Revisa periódicamente* el estado de tu expediente en el GED.\n\nEscribe *"quiero verificar mi expediente"* junto con tu *DNI* para consultar tu estado actual. ✅`;
+            console.log(`[Flow] Respuesta directa de próximos pasos.`);
+            await logInteraction(userId, body, msg, null, 'catalog');
+            return await flowDynamic(msg);
+        }
+
+        // Respuesta directa de COSTOS por categoría (si hay datos en tipos_programas)
+        if (asksCost && categoryIntent && !matchedProgram) {
+            const tipoInfo = getTipoProgramaInfo(categoryIntent);
+            if (tipoInfo && (tipoInfo.costos || tipoInfo.costo_ciclo)) {
+                const label = categoryIntent === 'maestrias' ? 'MAESTRÍA' : categoryIntent === 'doctorados' ? 'DOCTORADO' : 'SEGUNDA ESPECIALIDAD';
+                let msg = `💰 *Costos de ${label} - UNAC*\n\n`;
+                if (tipoInfo.costos) msg += `📌 *Inscripción:* ${tipoInfo.costos}\n`;
+                if (tipoInfo.costo_ciclo) msg += `💵 *Costo por semestre:* ${tipoInfo.costo_ciclo}\n`;
+                if (tipoInfo.duracion) msg += `⏳ *Duración:* ${tipoInfo.duracion}\n`;
+                if (tipoInfo.numero_cuenta) msg += `🏦 *Cuenta Scotiabank:* ${tipoInfo.numero_cuenta}\n`;
+                msg += `\n¿Deseas más información o te explico los pasos de inscripción? 🎓`;
+                console.log(`[Flow] Respuesta directa de costos para: ${categoryIntent}`);
+                await logInteraction(userId, body, msg, null, 'catalog');
+                return await flowDynamic(msg);
+            }
+        }
+
+        // Respuesta directa de REQUISITOS por categoría (si hay datos en tipos_programas)
+        if (asksReqs && categoryIntent && !matchedProgram) {
+            const tipoInfo = getTipoProgramaInfo(categoryIntent);
+            if (tipoInfo && tipoInfo.requisitos) {
+                const label = categoryIntent === 'maestrias' ? 'Maestría' : categoryIntent === 'doctorados' ? 'Doctorado' : 'Segunda Especialidad';
+                const msg = `📄 *Requisitos de ${label} - UNAC*\n\n${tipoInfo.requisitos}\n\n*Sube tus documentos en:* https://posgradounac.edu.pe/GED/ ✅`;
+                console.log(`[Flow] Respuesta directa de requisitos para: ${categoryIntent}`);
+                await logInteraction(userId, body, msg, null, 'catalog');
+                return await flowDynamic(msg);
+            }
+        }
+
+        // Respuesta directa de DURACIÓN si solo hay categoría
+        if (asksDuration && categoryIntent && !matchedProgram) {
+            const tipoInfo = getTipoProgramaInfo(categoryIntent);
+            if (tipoInfo && tipoInfo.duracion) {
+                const label = categoryIntent === 'maestrias' ? 'Maestría' : categoryIntent === 'doctorados' ? 'Doctorado' : 'Segunda Especialidad';
+                const msg = `⏳ *Duración de ${label} - UNAC*\n\n📚 ${tipoInfo.duracion}${tipoInfo.creditos ? `\n📖 Créditos: ${tipoInfo.creditos}` : ''}\n\n🎓 El grado se otorga con modalidad *PRESENCIAL* (según normativa SUNEDU).`;
+                console.log(`[Flow] Respuesta directa de duración para: ${categoryIntent}`);
+                await logInteraction(userId, body, msg, null, 'catalog');
+                return await flowDynamic(msg);
+            }
+        }
+
+        // Respuesta directa sobre MODALIDAD (hardcodeada, es la misma para todos)
+        if (asksModality && !matchedProgram) {
+            const msg = `🎓 *Modalidad de Estudios - UNAC Posgrado*\n\n📍 *Presencial con Herramientas Tecnológicas*\n\n• 80% virtual / 20% presencial\n• Asistencia 1 vez al mes (clase híbrida)\n• El grado académico se otorga con modalidad *PRESENCIAL* (cumple SUNEDU)\n\n¿Hay algo más en lo que pueda orientarte? 😊`;
+            console.log(`[Flow] Respuesta directa de modalidad.`);
+            await logInteraction(userId, body, msg, null, 'catalog');
+            return await flowDynamic(msg);
+        }
+        // --- FIN DETECCIÓN INTENCIONES ESPECÍFICAS ---
+
         if (!matchedProgram && matchedPrograms.length === 0 && isCategoryOnlyRequest(bodyLower, categoryIntent)) {
-            const list = getContextForCategory(categoryIntent);
+            const menuObj = getContextForCategory(categoryIntent);
             console.log(`[Flow] Consulta de categoría prioritaria detectada: ${categoryIntent}`);
-            // Loguear interacción
-            await logInteraction(userId, body, list, null, 'catalog');
-            return await flowDynamic(list);
+            if (menuObj && typeof menuObj === 'object') {
+                pendingCategoryMenuSelections.set(userId, menuObj);
+                await logInteraction(userId, body, menuObj.text, null, 'catalog');
+                return await flowDynamic(menuObj.text);
+            } else {
+                await logInteraction(userId, body, menuObj || '', null, 'catalog');
+                return await flowDynamic(menuObj || `No se encontraron programas.`);
+            }
         }
 
         // Detección de consulta general de posgrado ("programas", "oferta académica", etc.)
@@ -755,7 +937,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             return await flowDynamic(generalMsg);
         }
 
-        if (matchedProgram) {
+        if (matchedProgram && matchedPrograms.length === 1) {
             console.log(`[Flow] Programa detectado en catálogo: ${matchedProgram.nombre}`);
             const detailMessage = buildProgramDetailMessage(matchedProgram);
             if (detailMessage) {
@@ -790,18 +972,58 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
 
         if (matchedPrograms.length > 1) {
-            const catalogList = matchedPrograms.slice(0, 8).map((program, index) => {
+            const slicedPrograms = matchedPrograms.slice(0, 8);
+            // Formatear los programas añadiéndoles url de brochure para compatibilidad con pendingBrochureSelections
+            const programsWithBrochure = slicedPrograms.map(p => ({ ...p, brochureUrl: p.brochure }));
+            
+            const catalogList = programsWithBrochure.map((program, index) => {
                 const facultyLabel = program.facultad ? ` - ${program.facultad}` : '';
                 return `*${index + 1}.* ${program.nombre}${facultyLabel}`;
             }).join('\n');
 
+            pendingBrochureSelections.set(userId, programsWithBrochure);
+
             return await flowDynamic(
-                `📋 Encontré varios programas en la base de datos:\n\n${catalogList}\n\nResponde con el número del programa que deseas revisar.`
+                `📋 Encontré varios programas en la base de datos:\n\n${catalogList}\n\n👉 Responde con el *número* del programa que deseas revisar.`
             );
         }
 
         if (facultyMatch) {
             console.log(`[Flow] Facultad detectada: ${facultyMatch.nombre}`);
+            
+            let facultyPrograms = [];
+            
+            if (categoryIntent && facultyMatch[categoryIntent]) {
+                Object.values(facultyMatch[categoryIntent]).forEach(p => {
+                    facultyPrograms.push({ ...p, facultad: facultyMatch.nombre, tipo: categoryIntent, brochureUrl: p.brochure });
+                });
+            } else {
+                const categories = ['maestrias', 'doctorados', 'especialidades'];
+                categories.forEach(cat => {
+                    if (facultyMatch[cat]) {
+                        Object.values(facultyMatch[cat]).forEach(p => {
+                            facultyPrograms.push({ ...p, facultad: facultyMatch.nombre, tipo: cat, brochureUrl: p.brochure });
+                        });
+                    }
+                });
+            }
+
+            if (facultyPrograms.length > 0) {
+                const slicedPrograms = facultyPrograms.slice(0, 10);
+                
+                const catalogList = slicedPrograms.map((program, index) => {
+                    const typeLabel = program.tipo === 'maestrias' ? 'Maestría' : program.tipo === 'doctorados' ? 'Doctorado' : 'Especialidad';
+                    return `*${index + 1}.* [${typeLabel}] ${program.nombre}`;
+                }).join('\n');
+
+                pendingBrochureSelections.set(userId, slicedPrograms);
+
+                const filterLabel = categoryIntent ? ` (${categoryIntent.toUpperCase()})` : '';
+                return await flowDynamic(
+                    `📋 Programas en la *${facultyMatch.nombre}*${filterLabel}:\n\n${catalogList}\n\n👉 Responde con el *número* del programa que deseas revisar.`
+                );
+            }
+            
             return await flowDynamic(getContextForFaculty(facultyMatch));
         }
 
@@ -1806,31 +2028,9 @@ const main = async () => {
         return res.end('Lead encolado para procesamiento.');
     }));
 
-    /**
-     * NUEVO ENDPOINT: /api/enviar-mensaje
-     * Recibe peticiones del formulario PHP y encola con retardo.
-     */
-    adapterProvider.server.post('/api/enviar-mensaje', handleCtx(async (bot, req, res) => {
-        const { numero, mensaje, facultad, programa } = req.body;
-        const nombre = mensaje; // El PHP envía el nombre en el campo 'mensaje'
-        const targetNumber = numero.includes('@') ? numero : `${numero}@s.whatsapp.net`;
-
-        console.log(`[API New] Petición recibida para ${nombre} (${targetNumber})`);
-
-        // Validar límite diario (50)
-        const currentCounter = getLeadsCounter();
-        if (currentCounter.count >= 50) {
-            console.log(`[API New] ❌ Límite diario de 50 alcanzado.`);
-            return res.writeHead(403).end('Limite diario alcanzado');
-        }
-
-        // Incrementar contador y añadir a la cola
-        incrementLeadsCounter(50);
-        apiQueue.push({ targetNumber, nombre, facultad, programa });
-        processApiQueue(adapterProvider);
-
-        return res.end('Recibido y encolado');
-    }));
+    // NOTA: El endpoint /api/enviar-mensaje fue eliminado.
+    // El bot ya no recibe peticiones externas del formulario PHP para enviar mensajes automáticos.
+    // Los mensajes ahora son iniciados manualmente o vía /v1/enviar-datos con control de cola.
 
     try {
         httpServer(+PORT);
