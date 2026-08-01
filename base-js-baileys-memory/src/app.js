@@ -16,8 +16,7 @@ import { getGrokCompletion as originalGetGrokCompletion, getTokenUsageSummary } 
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
 import { checkInscriptionByDni } from './services/inscriptionService.js'
-import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok, getProgramsForFacultyCategory } from './services/catalogService.js'
-import { getRAGContext } from './services/knowledgeService.js'
+import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok, getProgramsForFacultyCategory, getCatalog } from './services/catalogService.js'
 
 import { fileURLToPath } from 'url';
 const __filenameApp = fileURLToPath(import.meta.url);
@@ -319,7 +318,7 @@ const saveToCache = async (question, answer, embedding) => {
  */
 const getGrokCompletion = async (userName, message, context = '', options = {}) => {
     try {
-        const cleanContext = compactContext(context, options.maxContextChars ?? 900);
+        const cleanContext = compactContext(context, options.maxContextChars ?? 2500);
         const systemPrompt = `Eres el Asesor Académico Virtual de la Escuela de Posgrado de la UNAC (Universidad Nacional del Callao).
 
 REGLAS ESTRICTAS:
@@ -364,15 +363,32 @@ const logInteraction = async (waId, userQuery, botResponse, embedding, source = 
     }
 }
 
+// Auto-limpiar selecciones pendientes cada 10 minutos (prevención de memory leak)
+setInterval(() => {
+    const maxAge = 5 * 60 * 1000; // 5 minutos
+    const now = Date.now();
+    for (const [key, val] of pendingBrochureSelections) {
+        if (val._ts && now - val._ts > maxAge) pendingBrochureSelections.delete(key);
+    }
+    for (const [key, val] of pendingCategoryMenuSelections) {
+        if (val._ts && now - val._ts > maxAge) pendingCategoryMenuSelections.delete(key);
+    }
+    for (const [key, val] of pendingProgramInfoSelections) {
+        if (val._ts && now - val._ts > maxAge) pendingProgramInfoSelections.delete(key);
+    }
+}, 10 * 60 * 1000);
+
 // FLUJOS
 const resetFlow = addKeyword(['reiniciar', 'reset', 'configurar', 'borrar'])
     .addAction(async (ctx, { flowDynamic }) => {
         saveUser(ctx.from, { nombre: null, esperandoNombre: true })
+        
         try {
-            await supabase.from('semantic_cache').delete().neq('id', 0)
-            console.log('[Cache] Memoria semántica limpiada por comando de reinicio.');
-        } catch (e) { console.error('[Cache] Error al limpiar:', e) }
-        await flowDynamic('🚀 Entendido. He borrado tus datos y limpiado mi memoria de respuestas anteriores. ¿Cuál es tu nombre completo para empezar?')
+            await supabase.from('conversations').update({ status: 'bot' }).eq('wa_id', ctx.from);
+            console.log(`[Bot] ${ctx.from} fue devuelto a modo automático (bot).`);
+        } catch (e) { console.error('[Bot] Error al restablecer modo manual:', e) }
+
+        await flowDynamic('🚀 Entendido. He borrado tus datos. ¿Cuál es tu nombre completo para empezar?')
     });
 
 /**
@@ -684,19 +700,28 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const bodyLower = body.toLowerCase();
 
         // --- DETECCIÓN AUTOMÁTICA DE DNI / EXPEDIENTE / INSCRIPCIÓN ---
+        const s = await state.getMyState() || {};
         const dniMatch = body.match(/\b\d{8}\b/);
-        const isDniOnly = /^\d{8}$/.test(body.replace(/\s+/g, ''));
+        const isDniOnly = /^\d{8}$/.test(body.replace(/[^0-9]/g, ''));
+        const mentionsDni = /(dni|documento|identidad)/i.test(bodyLower);
+        const esperandoDni = s.esperandoDni;
 
         // Detectar intención de verificar expediente o inscripción con frases naturales
         const mentionsExpediente = /(expediente|estado de mi|mi inscripci|verificar.*inscripci|verificar.*expediente|consultar.*inscripci|consultar.*expediente|revisar.*expediente|revisar.*inscripci|ver.*estado|mi.*estado|saber.*si.*estoy|estoy.*inscrito|inscripcion.*activa|fui.*admitido|admitido|si me.*inscrib)/i.test(bodyLower);
 
-        if (dniMatch && (isDniOnly || mentionsExpediente)) {
+        if (dniMatch && (isDniOnly || mentionsExpediente || mentionsDni || esperandoDni)) {
             console.log(`[Flow] DNI detectado: ${dniMatch[0]}, redirigiendo a expediente...`);
-            await state.update({ dni: dniMatch[0] });
+            await state.update({ dni: dniMatch[0], esperandoDni: false });
             return gotoFlow(flowExpedienteProcesar);
         }
 
+        // Si estaba esperando DNI pero el usuario escribió otra cosa, limpiar el estado
+        if (esperandoDni && !dniMatch) {
+            await state.update({ esperandoDni: false });
+        }
+
         if (mentionsExpediente && !dniMatch) {
+            await state.update({ esperandoDni: true });
             return await flowDynamic('🔍 *VERIFICACIÓN DE EXPEDIENTE E INSCRIPCIÓN*\n\nPuedo consultarte el estado de tu inscripción y el avance de tu carpeta de postulante.\n\nPor favor, escríbeme tu número de *DNI* (8 dígitos) para continuar.');
         }
         // --- FIN DETECCIÓN EXPEDIENTE ---
@@ -705,7 +730,6 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         const cleanBody = normalizeReply(bodyLower);
         const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
 
-        const s = await state.getMyState() || {};
         const isAffirmative = isAffirmativeReply(cleanBody);
 
         // 1. Manejo de Agradecimientos
@@ -813,7 +837,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
 
         // 2. Detección de solicitud de asesor humano (desde el usuario)
-        const asesorKeywords = ['solicitud asesor', 'asesor', 'ayuda humana', 'hablar con alguien', 'quiero hablar con una persona', 'necesito ayuda real', 'agente humano', 'operador'];
+        const asesorKeywords = ['solicitud asesor', 'quiero un asesor', 'necesito un asesor', 'ayuda humana', 'hablar con alguien', 'quiero hablar con una persona', 'necesito ayuda real', 'agente humano', 'operador', 'hablar con un humano'];
         if (asesorKeywords.some(k => bodyLower.includes(k))) {
             console.log(`[Handoff] Usuario ${userId} solicitó asesor humano directamente.`);
             await supabase
@@ -965,10 +989,16 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
 
         if (categoryIntent && isGeneralCategoryRequest(bodyLower, categoryIntent, matchedProgram)) {
-            const list = getContextForCategory(categoryIntent);
+            const catResult = getContextForCategory(categoryIntent);
             console.log(`[Flow] Consulta general de categoría detectada: ${categoryIntent}`);
-            await logInteraction(userId, body, list, null, 'catalog');
-            return await flowDynamic(list);
+            if (catResult && typeof catResult === 'object') {
+                pendingCategoryMenuSelections.set(userId, { ...catResult, _ts: Date.now() });
+                await logInteraction(userId, body, catResult.text, null, 'catalog');
+                return await flowDynamic(catResult.text);
+            } else {
+                await logInteraction(userId, body, catResult || '', null, 'catalog');
+                return await flowDynamic(catResult || 'No se encontraron programas.');
+            }
         }
 
         if (matchedPrograms.length > 1) {
@@ -1037,24 +1067,22 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
         // 3. Registro de Nombre
         if (!user.nombre || user.esperandoNombre) {
-            if (user.esperandoNombre && !greetings.includes(bodyLower) && body.split(' ').length >= 1 && body.length > 2) {
-                user.nombre = body;
+            const looksLikeName = /^[a-záéíóúñüA-ZÁÉÍÓÚÑÜ\s]{3,60}$/.test(body.trim()) && body.split(' ').length >= 1;
+            if (user.esperandoNombre && !greetings.includes(bodyLower) && looksLikeName) {
+                user.nombre = body.trim();
                 user.esperandoNombre = false;
                 saveUser(userId, user);
 
-                await supabase.from('students').upsert({ wa_id: userId, full_name: body, phone_number: ctx.from }).select()
+                await supabase.from('students').upsert({ wa_id: userId, full_name: body.trim(), phone_number: ctx.from }).select()
 
                 return await flowDynamic(`¡Excelente, *${user.nombre}*! 🎓 Soy el Asesor Académico de Posgrado UNAC. ¿En qué programa estás interesado? Tenemos Maestrías, Doctorados y Especialidades. ✨`);
             }
+            if (user.esperandoNombre && !looksLikeName && body.length > 2 && !greetings.includes(bodyLower)) {
+                return await flowDynamic('Por favor, escríbeme tu *nombre completo* (solo letras). Ejemplo: _Juan Pérez López_ ✍️');
+            }
             user.esperandoNombre = true;
             saveUser(userId, user);
-            return await flowDynamic([
-                '🌟 *BIENVENIDO A LA ESCUELA DE POSGRADO DE LA UNIVERSIDAD NACIONAL DEL CALLAO* 🌟',
-                'Aquí, la excelencia académica se combina con el compromiso y la vocación de servicio, formando líderes que impactan en la sociedad.',
-                '*Una universidad con un rostro humano*, donde cada estudiante es parte de una comunidad que inspira, acompaña y fortalece.',
-                '¡Es momento de crecer juntos!',
-                '\n¿Cuál es tu *nombre completo* para empezar? ✍️'
-            ]);
+            return await flowDynamic('🌟 *BIENVENIDO A LA ESCUELA DE POSGRADO DE LA UNIVERSIDAD NACIONAL DEL CALLAO* 🌟\n\nAquí, la excelencia académica se combina con el compromiso y la vocación de servicio, formando líderes que impactan en la sociedad.\n\n¡Es momento de crecer juntos! ¿Cuál es tu *nombre completo* para empezar? ✍️');
         }
 
         // 4. Caché Semántico
@@ -1084,13 +1112,17 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             dynamicContext = getContextForFaculty(facultyMatch);
             console.log(`[RAG] Facultad detectada: ${facultyMatch.nombre}`);
         } else if (categoryMatch) {
-            dynamicContext = getContextForCategory(categoryMatch);
+            const catCtx = getContextForCategory(categoryMatch);
+            dynamicContext = (typeof catCtx === 'object') ? catCtx.text : (catCtx || '');
             // Enriquecer con datos de tipos_programas (costos, requisitos, duración)
             const enriched = getEnrichedContextForGrok(categoryMatch);
             if (enriched) dynamicContext += '\n' + enriched;
             console.log(`[RAG] Categoría detectada: ${categoryMatch}`);
         } else {
-            dynamicContext = "Contamos con Maestrías, Doctorados y Especialidades en 7 facultades: Salud, Ingeniería (Industrial, Eléctrica, Pesquera), Administración, Contables y Educación.";
+            const catalog = getCatalog();
+            const numFacultades = catalog ? Object.keys(catalog).length : 0;
+            const nombresFacultades = catalog ? Object.values(catalog).map(f => f.nombre).join(', ') : '';
+            dynamicContext = `Contamos con Maestrías, Doctorados y Especialidades en ${numFacultades} facultades: ${nombresFacultades}.`;
             // Agregar contexto enriquecido de todos los tipos
             const enrichedM = getEnrichedContextForGrok('maestrias');
             const enrichedD = getEnrichedContextForGrok('doctorados');
@@ -1126,69 +1158,72 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         // 6. Consulta Grok
         const response = await getGrokCompletion(user.nombre, body, dynamicContext, {
             maxTokens: 180,
-            maxContextChars: 900,
+            maxContextChars: 2500,
         });
         console.log(`[Grok] Respuesta cruda: "${response}"`);
 
         if (response) {
-            // Guardar en Caché
-            if (embedding) await saveToCache(body, response, embedding);
+            // Guardar en Caché (solo si NO es solicitud de asesor)
+            const isSolicitudAsesor = response.includes('[SOLICITUD_ASESOR]');
+            if (embedding && !isSolicitudAsesor) await saveToCache(body, response, embedding);
 
             // Manejo de respuesta limpia
             const cleanResponse = response.replace('[SOLICITUD_ASESOR]', '').trim();
-            if (cleanResponse) await flowDynamic(cleanResponse);
 
-            // Loguear interacción en chatbot_interactions
-            await logInteraction(userId, body, cleanResponse, embedding, 'grok');
+            if (isSolicitudAsesor && !cleanResponse) {
+                // La IA no supo responder — preguntar al usuario si desea un asesor
+                console.log(`[Flow] IA no pudo responder para ${userId}. Ofreciendo asesor.`);
+                await flowDynamic('Lo siento, no tengo suficiente información para responder eso. 😔\n\n¿Deseas que te conecte con un *asesor humano*? Responde *sí* o escríbeme otra consulta.');
+                await state.update({ pendingAdvisor: true });
+            } else {
+                if (cleanResponse) await flowDynamic(cleanResponse);
 
-            // 7. Enviar Brochures automáticamente si se detectaron programas
-            const programsInResponse = findPrograms(response || '');
-            const allMatchedPrograms = [...(programsMatch || []), ...(programsInResponse || [])];
+                // Loguear interacción en chatbot_interactions
+                await logInteraction(userId, body, cleanResponse, embedding, 'grok');
 
-            // Eliminar duplicados
-            const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.nombre)))
-                .map(nombre => allMatchedPrograms.find(p => p.nombre === nombre))
-                .slice(0, 3);
+                // 7. Enviar Brochures automáticamente si se detectaron programas en lo que el usuario escribió
+                const allMatchedPrograms = [...(programsMatch || [])];
 
-            // Filtrar programas que tengan brochure disponible
-            const programsWithBrochure = uniquePrograms
-                .map(p => ({ ...p, brochureUrl: p.brochure }))
-                .filter(p => p.brochureUrl);
+                // Eliminar duplicados
+                const uniquePrograms = Array.from(new Set(allMatchedPrograms.map(p => p.nombre)))
+                    .map(nombre => allMatchedPrograms.find(p => p.nombre === nombre))
+                    .slice(0, 3);
 
-            if (programsWithBrochure.length === 1) {
-                // Solo 1 programa → enviar brochure directo (AUTOMÁTICO)
-                console.log(`[Flow] Enviando brochure automático: ${programsWithBrochure[0].nombre}`);
-                try {
+                // Filtrar programas que tengan brochure disponible
+                const programsWithBrochure = uniquePrograms
+                    .map(p => ({ ...p, brochureUrl: p.brochure }))
+                    .filter(p => p.brochureUrl);
+
+                if (programsWithBrochure.length === 1) {
+                    console.log(`[Flow] Enviando brochure automático: ${programsWithBrochure[0].nombre}`);
+                    try {
+                        await delay(1000);
+                        await flowDynamic([{
+                            body: `📄 *Brochure Oficial:* ${programsWithBrochure[0].nombre}`,
+                            media: programsWithBrochure[0].brochureUrl
+                        }]);
+                    } catch (brochErr) {
+                        console.error(`[Flow] Error al enviar brochure:`, brochErr.message);
+                    }
+                } else if (programsWithBrochure.length > 1) {
+                    console.log(`[Flow] ${programsWithBrochure.length} brochures encontrados. Mostrando lista.`);
+                    const listItems = programsWithBrochure.map((p, i) => `*${i + 1}.* ${p.nombre}`).join('\n');
+
+                    pendingBrochureSelections.set(userId, { ...programsWithBrochure, _ts: Date.now() });
+
                     await delay(1000);
-                    await flowDynamic([{
-                        body: `📄 *Brochure Oficial:* ${programsWithBrochure[0].nombre}`,
-                        media: programsWithBrochure[0].brochureUrl
-                    }]);
-                } catch (brochErr) {
-                    console.error(`[Flow] Error al enviar brochure:`, brochErr.message);
+                    await flowDynamic(
+                        `📋 Encontré *${programsWithBrochure.length} brochures* disponibles:\n\n` +
+                        listItems + '\n\n' +
+                        '👉 Responde con el *número* del programa que deseas (ej: *1*), varios separados por coma (ej: *1, 3*), o escribe *todos* para recibirlos todos.'
+                    );
                 }
-            } else if (programsWithBrochure.length > 1) {
-                // Múltiples programas → mostrar lista y esperar selección
-                console.log(`[Flow] ${programsWithBrochure.length} brochures encontrados. Mostrando lista.`);
-                const listItems = programsWithBrochure.map((p, i) => `*${i + 1}.* ${p.nombre}`).join('\n');
 
-                pendingBrochureSelections.set(userId, programsWithBrochure);
-
-                await delay(1000);
-                await flowDynamic(
-                    `📋 Encontré *${programsWithBrochure.length} brochures* disponibles:\n\n` +
-                    listItems + '\n\n' +
-                    '👉 Responde con el *número* del programa que deseas (ej: *1*), varios separados por coma (ej: *1, 3*), o escribe *todos* para recibirlos todos.'
-                );
-            }
-
-            // 8. Interceptar [SOLICITUD_ASESOR] (Derivación Reactiva Automática)
-            if (response.includes('[SOLICITUD_ASESOR]')) {
-                console.log(`[Flow] IA solicitó derivación para ${userId}. Activando Modo Manual.`);
-                await supabase
-                    .from('conversations')
-                    .update({ status: 'human_active', updated_at: new Date().toISOString() })
-                    .eq('wa_id', userId);
+                // Si la IA además incluyó [SOLICITUD_ASESOR] con texto extra, ofrecer asesor sin forzar
+                if (isSolicitudAsesor) {
+                    console.log(`[Flow] IA sugirió derivación para ${userId}. Ofreciendo asesor.`);
+                    await state.update({ pendingAdvisor: true });
+                }
             }
         } else {
             await flowDynamic("Lo siento, tuve un problema al procesar tu consulta. ¿Podrías repetirla? 🔄");
@@ -1232,6 +1267,15 @@ const flowPasosInscripcion = addKeyword([
     'pasos', 'inscribirme', 'inscribirse', 'proceso', 'como hago para inscribirme', 'como me inscribo'
 ], { regex: false })
     .addAction(async (ctx, { flowDynamic }) => {
+        const infoM = getTipoProgramaInfo('maestrias');
+        const infoD = getTipoProgramaInfo('doctorados');
+        const infoE = getTipoProgramaInfo('especialidades');
+        
+        const costoM = infoM?.costos || 'S/ 200';
+        const costoD = infoD?.costos || 'S/ 250';
+        const costoE = infoE?.costos || 'S/ 120';
+        const cuenta = infoM?.numero_cuenta || '000-3747336\n**CCI:** 009-100-000003747336-90';
+
         const respuesta = `📌 **¡Paso a paso para completar tu proceso de admisión!** 🎓✨
 
 **1️⃣ Realiza tu inscripción**
@@ -1241,14 +1285,13 @@ Ingresa al siguiente enlace y completa tu registro con tus datos:
 **2️⃣ Realiza el pago por derecho de admisión** 💳
 
 El monto dependerá del programa al que postulas:
-🎓 **Maestría:** S/ 200
-📘 **Segunda Especialidad:** S/ 120
-🎖️ **Doctorado:** S/ 250
+🎓 **Maestría:** ${costoM}
+📘 **Segunda Especialidad:** ${costoE}
+🎖️ **Doctorado:** ${costoD}
 
 💥 **Datos de la cuenta bancaria:**
 🏦 **Banco:** Scotiabank
-**Cuenta:** 000-3747336
-**CCI:** 009-100-000003747336-90
+**Cuenta:** ${cuenta}
 
 ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II
 👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl
@@ -1276,11 +1319,30 @@ Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado d
         return await flowDynamic(respuesta);
     });
 
+const flowExamenAdmision = addKeyword([
+    'examen', 'evaluacion', 'entrevista', 'en que consiste el examen', 'como es el examen', 'hay examen', 'en que consiste la evaluacion'
+], { regex: false })
+    .addAction(async (ctx, { flowDynamic }) => {
+        const respuesta = `📝 *Sobre la Evaluación de Admisión - Posgrado UNAC*
+
+Te comento que nuestro proceso de admisión *no es un examen escrito tradicional ni descalificatorio*. Consiste en dos etapas sencillas:
+
+1️⃣ *Evaluación de Expediente:* Revisamos tu CV y los documentos que subas a la plataforma GED.
+2️⃣ *Entrevista Personal:* Una breve charla virtual para conocer tu perfil y expectativas.
+
+🗓️ *Fechas clave:* Las entrevistas se llevarán a cabo entre los días *19 y 20 de agosto*.
+
+¿Te gustaría que te envíe los pasos para iniciar tu inscripción? 🎓`;
+
+        await logInteraction(ctx.from, ctx.body, respuesta, null, 'catalog');
+        return await flowDynamic(respuesta);
+    });
+
 const main = async () => {
     console.log('[Bot] Inicializando catálogo desde Supabase...');
     await initCatalog();
 
-    const adapterFlow = createFlow([resetFlow, flowPasosInscripcion, flowExpedienteProcesar, welcomeFlow, solicitudAsesorFlow, mediaFlow])
+    const adapterFlow = createFlow([resetFlow, flowExamenAdmision, flowPasosInscripcion, flowExpedienteProcesar, welcomeFlow, solicitudAsesorFlow, mediaFlow])
     const adapterProvider = createProvider(Provider);
     const adapterDB = new Database();
 

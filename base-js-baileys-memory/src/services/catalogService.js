@@ -471,6 +471,10 @@ export const findFaculty = (query) => {
     if (!catalog || !query) return null
     const queryNorm = normalizeText(query)
 
+    // Prevenir falsos positivos con afirmaciones comunes o palabras muy cortas
+    if (/^(si|sí|ok|ya|claro|dale|yes)$/.test(queryNorm)) return null;
+    if (queryNorm.length < 3) return null;
+
     for (const facultyId in catalog) {
         if (normalizeText(catalog[facultyId].nombre).includes(queryNorm) || queryNorm.includes(normalizeText(catalog[facultyId].nombre))) {
             return catalog[facultyId]

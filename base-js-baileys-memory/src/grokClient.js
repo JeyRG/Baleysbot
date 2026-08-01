@@ -86,6 +86,7 @@ export async function getGrokCompletion(messages, options = {}) {
                     'Authorization': `Bearer ${apiKey}`,
                     'Content-Type': 'application/json',
                 },
+                timeout: 15000, // 15 segundos máximo
             }
         );
         if (response.data?.usage) {
