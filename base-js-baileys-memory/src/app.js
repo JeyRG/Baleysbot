@@ -83,7 +83,7 @@ function buildProgramDetailMessage(program) {
             if (tipoInfo.duracion) extraInfo += `⏳ *Duración:* ${tipoInfo.duracion}\n`;
             if (tipoInfo.costos) extraInfo += `💰 *Costo Inscripción:* ${tipoInfo.costos}\n`;
             if (tipoInfo.costo_ciclo) extraInfo += `💵 *Costo por Ciclo:* ${tipoInfo.costo_ciclo}\n`;
-            
+
             if (extraInfo) {
                 lines.push(`---\n${extraInfo.trim()}`);
             }
@@ -382,7 +382,7 @@ setInterval(() => {
 const resetFlow = addKeyword(['reiniciar', 'reset', 'configurar', 'borrar'])
     .addAction(async (ctx, { flowDynamic }) => {
         saveUser(ctx.from, { nombre: null, esperandoNombre: true })
-        
+
         try {
             await supabase.from('conversations').update({ status: 'bot' }).eq('wa_id', ctx.from);
             console.log(`[Bot] ${ctx.from} fue devuelto a modo automático (bot).`);
@@ -633,9 +633,41 @@ const flowExpedienteProcesar = addKeyword(EVENTS.ACTION)
                 await flowDynamic([
                     '⚠️ *FALTA SUBIR TU CARPETA DE POSTULANTE*',
                     'Para continuar con tu proceso, debes subir tus documentos.',
-                    '👉 *Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:',
-                    '👉 https://posgradounac.edu.pe/GED/*',
-                    'Sube tu Carpeta de Postulante para que pueda ser evaluada por coordinación.'
+                    `📌 **¡Sigue estos pasos para completar tu proceso de admisión!** 🎓✨
+
+**1️⃣ ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II**
+Ingresa al siguiente enlace y completa tu registro con tus datos:
+👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl/
+
+**2️⃣ Realiza el pago por derecho de admisión** 💳
+
+El monto dependerá del programa al que postulas:
+🎓 **Maestría:** S/ 200
+📘 **Segunda Especialidad:** S/ 120
+🎖️ **Doctorado:** S/ 250
+
+💥 **Datos de la cuenta bancaria:**
+🏦 **Banco:** Scotiabank
+**Cuenta:** 000-3747336
+**CCI:** 009-100-000003747336-90
+
+⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
+
+**3️⃣ Revisa los requisitos de admisión** 📄
+
+Verifica la documentación que debes presentar según el programa al que postulas:
+👉 https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php
+
+**4️⃣ Sube tu expediente digital (GED)** 💻
+
+Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:
+👉 https://posgradounac.edu.pe/GED/login.php
+
+Solo necesitarás tu **DNI**, siempre que ya hayas realizado tu inscripción.
+
+**5️⃣ Verifica el estado de tu carpeta** ✅
+
+Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir. Si quiere una atención más personalziada puede comunicarse con el 900969591`
                 ]);
             } else {
                 const estado = String(result.idEstadoSeguimiento);
@@ -1005,7 +1037,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             const slicedPrograms = matchedPrograms.slice(0, 8);
             // Formatear los programas añadiéndoles url de brochure para compatibilidad con pendingBrochureSelections
             const programsWithBrochure = slicedPrograms.map(p => ({ ...p, brochureUrl: p.brochure }));
-            
+
             const catalogList = programsWithBrochure.map((program, index) => {
                 const facultyLabel = program.facultad ? ` - ${program.facultad}` : '';
                 return `*${index + 1}.* ${program.nombre}${facultyLabel}`;
@@ -1020,9 +1052,9 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
         if (facultyMatch) {
             console.log(`[Flow] Facultad detectada: ${facultyMatch.nombre}`);
-            
+
             let facultyPrograms = [];
-            
+
             if (categoryIntent && facultyMatch[categoryIntent]) {
                 Object.values(facultyMatch[categoryIntent]).forEach(p => {
                     facultyPrograms.push({ ...p, facultad: facultyMatch.nombre, tipo: categoryIntent, brochureUrl: p.brochure });
@@ -1040,7 +1072,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
 
             if (facultyPrograms.length > 0) {
                 const slicedPrograms = facultyPrograms.slice(0, 10);
-                
+
                 const catalogList = slicedPrograms.map((program, index) => {
                     const typeLabel = program.tipo === 'maestrias' ? 'Maestría' : program.tipo === 'doctorados' ? 'Doctorado' : 'Especialidad';
                     return `*${index + 1}.* [${typeLabel}] ${program.nombre}`;
@@ -1053,7 +1085,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                     `📋 Programas en la *${facultyMatch.nombre}*${filterLabel}:\n\n${catalogList}\n\n👉 Responde con el *número* del programa que deseas revisar.`
                 );
             }
-            
+
             return await flowDynamic(getContextForFaculty(facultyMatch));
         }
 
@@ -1270,7 +1302,7 @@ const flowPasosInscripcion = addKeyword([
         const infoM = getTipoProgramaInfo('maestrias');
         const infoD = getTipoProgramaInfo('doctorados');
         const infoE = getTipoProgramaInfo('especialidades');
-        
+
         const costoM = infoM?.costos || 'S/ 200';
         const costoD = infoD?.costos || 'S/ 250';
         const costoE = infoE?.costos || 'S/ 120';
