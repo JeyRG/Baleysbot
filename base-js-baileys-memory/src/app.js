@@ -613,7 +613,7 @@ Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado d
  * Flujo Unificado de Verificación de Expediente e Inscripción
  */
 const flowExpedienteProcesar = addKeyword(EVENTS.ACTION)
-    .addAction(async (ctx, { state, flowDynamic }) => {
+    .addAction(async (ctx, { state, flowDynamic, provider }) => {
         const s = await state.getMyState();
         const dni = s.dni;
         await flowDynamic('⏳ Consultando tu expediente en nuestra base de datos... un momento.');
@@ -689,6 +689,16 @@ Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado d
                         'Tu carpeta de postulante ya fue enviada y se encuentra a la espera de revisión.',
                         '👉 Por favor, ten paciencia. Te notificaremos o puedes volver a consultar tu estado más adelante.'
                     ]);
+
+                    const targetProgram = findProgramFuzzy(result.programa);
+                    if (targetProgram && (targetProgram.brochureUrl || targetProgram.brochure)) {
+                        const urlPDF = targetProgram.brochureUrl || targetProgram.brochure;
+                        await delay(1500);
+                        await provider.sendMessage(ctx.from, `📄 Te adjunto el brochure oficial de tu programa:`, {
+                            media: urlPDF,
+                            fileName: `brochure-${targetProgram.nombre}.pdf`.replace(/\s+/g, '_')
+                        });
+                    }
                 } else {
                     await flowDynamic([
                         '📄 *Estado de tu expediente:*',
@@ -1362,7 +1372,7 @@ Te comento que nuestro proceso de admisión *no es un examen escrito tradicional
 1️⃣ *Evaluación de Expediente:* Revisamos tu CV y los documentos que subas a la plataforma GED.
 2️⃣ *Entrevista Personal:* Una breve charla virtual para conocer tu perfil y expectativas.
 
-🗓️ *Fechas clave:* Las entrevistas se llevarán a cabo entre los días *19 y 20 de agosto*.
+🗓️ *Fechas clave:* Las entrevistas se llevarán a cabo entre los días *29 y 30 de agosto*.
 
 ¿Te gustaría que te envíe los pasos para iniciar tu inscripción? 🎓`;
 
