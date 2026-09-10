@@ -461,13 +461,13 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         const targetProgram = findProgramFuzzy(programa);
 
         // 1. Determinar el link del grupo
-        let groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl'; // Default
+        let groupLink = 'https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&ilr=4'; // Default
         if (targetProgram && targetProgram.link_ws) {
             groupLink = targetProgram.link_ws;
         } else {
             const p = programa.toLowerCase();
-            if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
-            else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl';
+            if (p.includes('maestria')) groupLink = 'https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&ilr=4';
+            else if (p.includes('doctorado')) groupLink = 'https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&ilr=4';
         }
 
         // 2. Información base
@@ -584,7 +584,7 @@ El monto dependerá del programa al que postulas:
 **CCI:** 009-100-000003747336-90
 
 ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II
-👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl
+👉https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&ilr=4
 
 ⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
 
@@ -637,7 +637,7 @@ const flowExpedienteProcesar = addKeyword(EVENTS.ACTION)
 
 **1️⃣ ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II**
 Ingresa al siguiente enlace y completa tu registro con tus datos:
-👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl/
+👉https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&ilr=4
 
 **2️⃣ Realiza el pago por derecho de admisión** 💳
 
@@ -1372,7 +1372,7 @@ Te comento que nuestro proceso de admisión *no es un examen escrito tradicional
 1️⃣ *Evaluación de Expediente:* Revisamos tu CV y los documentos que subas a la plataforma GED.
 2️⃣ *Entrevista Personal:* Una breve charla virtual para conocer tu perfil y expectativas.
 
-🗓️ *Fechas clave:* Las entrevistas se llevarán a cabo entre los días *29 y 30 de agosto*.
+🗓️ *Fechas clave:* Las entrevistas se llevarán a cabo los últimos días de marzo del 2027.
 
 ¿Te gustaría que te envíe los pasos para iniciar tu inscripción? 🎓`;
 

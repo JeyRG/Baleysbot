@@ -25,6 +25,18 @@ async function processTrainingFile() {
     
     console.log(`[Trainer] Se encontraron ${sections.length} secciones para procesar.`);
 
+    console.log(`[Trainer] Eliminando conocimientos anteriores de la base de datos...`);
+    const { error: deleteError } = await supabase
+        .from('knowledge_base')
+        .delete()
+        .contains('metadata', { source: 'entranmiento.json' });
+        
+    if (deleteError) {
+        console.error(`[Trainer] ❌ Error eliminando datos anteriores:`, deleteError.message);
+    } else {
+        console.log(`[Trainer] ✅ Datos anteriores eliminados.`);
+    }
+
     let inserted = 0;
 
     for (let i = 0; i < sections.length; i++) {
