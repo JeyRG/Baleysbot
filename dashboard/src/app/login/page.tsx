@@ -2,27 +2,32 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { adminApi, setSession } from '@/lib/adminApi';
 
 export default function LoginPage() {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setIsLoading(true);
-    
-    // Simular latencia para efecto premium
-    setTimeout(() => {
-        if (password === (process.env.NEXT_PUBLIC_ADMIN_PIN || 'admin123')) {
-            document.cookie = `auth_token=valid; path=/; max-age=86400`;
-            router.push('/');
-          } else {
-            setError('PIN de acceso incorrecto');
-            setIsLoading(false);
-          }
-    }, 800);
+    try {
+      const res = await adminApi.login(username.trim(), password);
+      if (res.ok && res.token && res.user) {
+        setSession(res.token, res.user);
+        router.push('/');
+      } else {
+        setError(res.error || 'No se pudo iniciar sesión');
+        setIsLoading(false);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Error de conexión con el servidor');
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,20 +68,31 @@ export default function LoginPage() {
 
                 <form onSubmit={handleLogin} className="space-y-8">
                     <div className="space-y-6">
-                        {/* PIN field (Acting as Email/Password per design) */}
+                        {/* Usuario */}
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-white/80 ml-1">Pin de Acceso Maestro</label>
+                            <label className="text-xs font-bold text-white/80 ml-1">Usuario</label>
+                            <input
+                                type="text"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                placeholder="Tu usuario"
+                                autoComplete="username"
+                                className="w-full px-6 py-4 bg-white/10 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium backdrop-blur-md"
+                                required
+                            />
+                        </div>
+                        {/* Contraseña */}
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-white/80 ml-1">Contraseña</label>
                             <input
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Ingresa tu clave de acceso"
+                                placeholder="Ingresa tu contraseña"
+                                autoComplete="current-password"
                                 className="w-full px-6 py-4 bg-white/10 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium backdrop-blur-md"
                                 required
                             />
-                            <div className="flex justify-between px-1">
-                                <span className="text-[10px] text-white/40 font-medium hover:text-white/70 cursor-pointer transition-colors">¿Olvidaste tu PIN?</span>
-                            </div>
                         </div>
                         
                         {error && (

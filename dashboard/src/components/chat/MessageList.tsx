@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getUser } from '@/lib/adminApi';
 
 interface MessageListProps {
     conversation: any;
@@ -148,11 +149,14 @@ export function MessageList({ conversation, students }: MessageListProps) {
         e.preventDefault();
         if (!newMessage.trim()) return;
 
+        const me = getUser();
         setIsTyping(true);
         const { error } = await supabase.from('messages').insert({
             wa_id: conversation.wa_id,
             text: newMessage,
-            sender_type: 'dashboard'
+            sender_type: 'dashboard',
+            sent_by: me?.id || null,
+            sent_by_name: me?.full_name || me?.username || null
         });
 
         if (!error) setNewMessage('');
@@ -161,10 +165,13 @@ export function MessageList({ conversation, students }: MessageListProps) {
 
     const sendQuickReply = async (text: string) => {
         setShowQuickReplies(false);
+        const me = getUser();
         const { error } = await supabase.from('messages').insert({
             wa_id: conversation.wa_id,
             text,
-            sender_type: 'dashboard'
+            sender_type: 'dashboard',
+            sent_by: me?.id || null,
+            sent_by_name: me?.full_name || me?.username || null
         });
         if (error) console.error('Error sending quick reply:', error);
     };

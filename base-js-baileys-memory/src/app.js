@@ -16,6 +16,7 @@ import { getGrokCompletion as originalGetGrokCompletion, getTokenUsageSummary } 
 import { supabase } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
 import { checkInscriptionByDni } from './services/inscriptionService.js'
+import { login, logout, verifyToken, listUsers, createUser, updateUser, deleteUser, getAudit, getAgentStats, writeAudit } from './services/adminAuth.js'
 import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok, getProgramsForFacultyCategory, getCatalog } from './services/catalogService.js'
 
 import { fileURLToPath } from 'url';
@@ -2135,6 +2136,116 @@ const main = async () => {
     // NOTA: El endpoint /api/enviar-mensaje fue eliminado.
     // El bot ya no recibe peticiones externas del formulario PHP para enviar mensajes automáticos.
     // Los mensajes ahora son iniciados manualmente o vía /v1/enviar-datos con control de cola.
+
+    // =====================================================================
+    // ENDPOINTS DE AUTENTICACIÓN Y GESTIÓN DE CUENTAS (panel admin)
+    // =====================================================================
+    const sendJson = (res, status, obj) => {
+        res.statusCode = status;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(obj));
+    };
+
+    // Login
+    adapterProvider.server.post('/admin/login', async (req, res) => {
+        try {
+            const { username, password } = req.body || {};
+            const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
+            const result = await login(username, password, { ip });
+            return sendJson(res, result.status || (result.ok ? 200 : 401), result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Logout
+    adapterProvider.server.post('/admin/logout', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            await logout(token);
+            return sendJson(res, 200, { ok: true });
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Sesión actual (para restaurar sesión al recargar)
+    adapterProvider.server.get('/admin/me', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const user = await verifyToken(token);
+            if (!user) return sendJson(res, 401, { ok: false, error: 'Sesión inválida' });
+            return sendJson(res, 200, { ok: true, user });
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Listar usuarios
+    adapterProvider.server.get('/admin/users', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const result = await listUsers(token);
+            return sendJson(res, result.status || 200, result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Crear usuario
+    adapterProvider.server.post('/admin/users', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const result = await createUser(token, req.body || {});
+            return sendJson(res, result.status || 200, result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Actualizar usuario (rol, activo, contraseña, nombre)
+    adapterProvider.server.put('/admin/users/:id', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const result = await updateUser(token, req.params.id, req.body || {});
+            return sendJson(res, result.status || 200, result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Eliminar usuario
+    adapterProvider.server.delete('/admin/users/:id', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const result = await deleteUser(token, req.params.id);
+            return sendJson(res, result.status || 200, result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Auditoría (qué hace cada usuario)
+    adapterProvider.server.get('/admin/audit', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const result = await getAudit(token, { limit: req.query?.limit });
+            return sendJson(res, result.status || 200, result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
+
+    // Métricas: mensajes respondidos por día y por agente
+    adapterProvider.server.get('/admin/agent-stats', async (req, res) => {
+        try {
+            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+            const result = await getAgentStats(token);
+            return sendJson(res, result.status || 200, result);
+        } catch (err) {
+            return sendJson(res, 500, { ok: false, error: err.message });
+        }
+    });
 
     try {
         httpServer(+PORT);

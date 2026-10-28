@@ -6,6 +6,10 @@ import DashboardOverview from '../dashboard/DashboardOverview';
 import ConnectionStatus from '../dashboard/ConnectionStatus';
 import KnowledgeManager from '../dashboard/KnowledgeManager';
 import Analytics from '../dashboard/Analytics';
+import UsersManager from '../dashboard/UsersManager';
+import AuditLog from '../dashboard/AuditLog';
+import AgentStats from '../dashboard/AgentStats';
+import { getUser, clearSession, adminApi } from '@/lib/adminApi';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
@@ -51,7 +55,8 @@ export function ChatLayout() {
     const [conversations, setConversations] = useState<any[]>([]);
     const [students, setStudents] = useState<any[]>([]);
     const [activeConv, setActiveConv] = useState<any | null>(null);
-    const [activeView, setActiveView] = useState<'inbox' | 'dashboard' | 'connection' | 'training' | 'analytics'>('dashboard');
+    const [activeView, setActiveView] = useState<'inbox' | 'dashboard' | 'connection' | 'training' | 'analytics' | 'users' | 'audit' | 'agentstats'>('dashboard');
+    const [currentUser, setCurrentUser] = useState<any>(null);
     const [filterMode, setFilterMode] = useState<'all' | 'support' | 'queue'>('all');
     const [isNavOpen, setIsNavOpen] = useState(true);
     const router = useRouter();
@@ -71,10 +76,25 @@ export function ChatLayout() {
     const supportCount = conversations.filter(c => c.status === 'human_active').length;
     const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
-    const handleLogout = () => {
-        document.cookie = "auth_token=; path=/; max-age=0";
+    const handleLogout = async () => {
+        try { await adminApi.logout(); } catch { /* ignorar */ }
+        clearSession();
         router.push('/login');
     };
+
+    // Cargar usuario actual y validar la sesión con el backend
+    useEffect(() => {
+        const me = getUser();
+        if (!me) {
+            router.push('/login');
+            return;
+        }
+        setCurrentUser(me);
+        adminApi.me().catch(() => {
+            clearSession();
+            router.push('/login');
+        });
+    }, [router]);
 
     const fetchConvs = useCallback(async () => {
         const { data, error } = await supabase.from('conversations').select('*').order('updated_at', { ascending: false });
@@ -291,6 +311,35 @@ export function ChatLayout() {
                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
                         <span className="font-bold text-sm">Métricas</span>
                     </button>
+                    <button
+                        onClick={() => setActiveView('agentstats')}
+                        className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'agentstats' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                        <span className="font-bold text-sm">Actividad Agentes</span>
+                    </button>
+
+                    {currentUser?.role === 'superadmin' && (
+                        <>
+                            <button
+                                onClick={() => setActiveView('users')}
+                                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'users' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                                <span className="font-bold text-sm">Cuentas</span>
+                            </button>
+
+                            <button
+                                onClick={() => setActiveView('audit')}
+                                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'audit' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                <span className="font-bold text-sm">Auditoría</span>
+                            </button>
+                        </>
+                    )}
+
+
 
                     <button
                         onClick={() => setActiveView('connection')}
@@ -418,6 +467,39 @@ export function ChatLayout() {
                         className="flex-1 overflow-y-auto"
                     >
                         <Analytics />
+                    </motion.main>
+                ) : activeView === 'agentstats' ? (
+                    <motion.main
+                        key="agentstats"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="flex-1 overflow-y-auto"
+                    >
+                        <AgentStats />
+                    </motion.main>
+                ) : activeView === 'users' ? (
+                    <motion.main
+                        key="users"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="flex-1 overflow-y-auto"
+                    >
+                        <UsersManager />
+                    </motion.main>
+                ) : activeView === 'audit' ? (
+                    <motion.main
+                        key="audit"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="flex-1 overflow-y-auto"
+                    >
+                        <AuditLog />
                     </motion.main>
                 ) : (
                     <motion.main

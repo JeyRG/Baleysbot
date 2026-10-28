@@ -32,6 +32,31 @@ yarn-debug.log*
 yarn-error.log*
 .DS_Store
 *.json.bak
+*.log
 
 # Build artifacts
 dist/
+
+# Datos sensibles / runtime del bot (no versionar)
+**/user_data.json
+**/token_usage.json
+**/last_payload.json
+**/programas.json.bak
+
+# Temporales de analisis
+_scan.txt
+_analyze.py
+g_*.out
+g_*.err
+graphify-check.tmp
+graphify-install.log
+
+# Graphify (grafo de conocimiento del codigo)
+graphify-out/
+.graphify_analysis.json
+.graphify_root
+
+# Editor / OS
+.vscode/*
+!.vscode/settings.json
+Thumbs.db

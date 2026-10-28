@@ -8,7 +8,7 @@ import { getEmbedding } from '../services/embeddingService.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const trainingFile = path.join(__dirname, '..', 'services', 'entranmiento.json');
+const trainingFile = path.join(__dirname, '..', 'services', 'entrenamiento.json');
 
 async function processTrainingFile() {
     console.log(`[Trainer] Leyendo archivo de entrenamiento: ${trainingFile}`);
@@ -29,7 +29,7 @@ async function processTrainingFile() {
     const { error: deleteError } = await supabase
         .from('knowledge_base')
         .delete()
-        .contains('metadata', { source: 'entranmiento.json' });
+        .contains('metadata', { source: 'entrenamiento.json' });
         
     if (deleteError) {
         console.error(`[Trainer] ❌ Error eliminando datos anteriores:`, deleteError.message);
@@ -50,7 +50,7 @@ async function processTrainingFile() {
 
         // Si no tiene cuerpo, o todo era texto general (primer bloque)
         let chunkText = "";
-        let metadata = { source: 'entranmiento.json' };
+        let metadata = { source: 'entrenamiento.json' };
 
         if (i === 0 && !title.includes('REQUISITOS')) {
             // El primer bloque suele ser general (fechas, modalidad general)
