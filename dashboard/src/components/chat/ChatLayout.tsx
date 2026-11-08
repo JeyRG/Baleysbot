@@ -488,7 +488,14 @@ export function ChatLayout() {
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="flex-1 overflow-y-auto"
                     >
-                        <UsersManager />
+                        {currentUser?.role === 'superadmin' ? (
+                            <UsersManager />
+                        ) : (
+                            <div className="p-8 text-center text-muted-foreground">
+                                <h3 className="text-xl font-bold text-destructive">Acceso Denegado</h3>
+                                <p className="mt-2 text-sm">Se requieren privilegios de Super Administrador para gestionar cuentas.</p>
+                            </div>
+                        )}
                     </motion.main>
                 ) : activeView === 'audit' ? (
                     <motion.main
@@ -499,7 +506,14 @@ export function ChatLayout() {
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="flex-1 overflow-y-auto"
                     >
-                        <AuditLog />
+                        {currentUser?.role === 'superadmin' ? (
+                            <AuditLog />
+                        ) : (
+                            <div className="p-8 text-center text-muted-foreground">
+                                <h3 className="text-xl font-bold text-destructive">Acceso Denegado</h3>
+                                <p className="mt-2 text-sm">Se requieren privilegios de Super Administrador para visualizar la auditoría.</p>
+                            </div>
+                        )}
                     </motion.main>
                 ) : (
                     <motion.main

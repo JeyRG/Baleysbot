@@ -1,7 +1,14 @@
 // Cliente para hablar con el backend del bot (autenticación y admin).
 // El token de sesión se guarda en cookies y se envía como Bearer.
 
-const BOT_URL = process.env.NEXT_PUBLIC_BOT_URL || 'http://localhost:3000';
+export function getBotUrl(): string {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+        return `http://${window.location.hostname}:3000`;
+    }
+    return process.env.NEXT_PUBLIC_BOT_URL || 'http://localhost:3000';
+}
+
+const BOT_URL = getBotUrl();
 
 export interface AdminUser {
     id: string;
@@ -45,7 +52,8 @@ export function getUser(): AdminUser | null {
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const token = getToken();
-    const res = await fetch(`${BOT_URL}${path}`, {
+    const botUrl = getBotUrl();
+    const res = await fetch(`${botUrl}${path}`, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -94,4 +102,10 @@ export const adminApi = {
 
     agentStats: () =>
         request<{ ok: boolean; rows?: any[]; error?: string }>('/admin/agent-stats'),
+
+    setHandoff: (waId: string, status: 'bot' | 'human_active') =>
+        request<{ ok: boolean; status: string; error?: string }>(
+            '/admin/conversations/handoff',
+            { method: 'POST', body: JSON.stringify({ wa_id: waId, status }) }
+        ),
 };

@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.students (
     full_name TEXT,
     document_id TEXT,
     phone_number TEXT,
+    student_condition TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -51,6 +52,8 @@ CREATE TABLE IF NOT EXISTS public.unresolved_queries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     query TEXT NOT NULL,
     wa_id TEXT,
+    user_name TEXT,
+    user_condition TEXT,
     embedding vector(384),
     resolved BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
@@ -285,6 +288,8 @@ ALTER TABLE public.pending_leads ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.chatbot_interactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     wa_id TEXT,
+    user_name TEXT,
+    user_condition TEXT,
     user_query TEXT NOT NULL,
     bot_response TEXT NOT NULL,
     embedding vector(384),

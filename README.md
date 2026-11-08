@@ -53,7 +53,7 @@ cd dashboard
 npm install
 # Crear .env.local con credenciales de Supabase
 npm run build
-npm run start -- -p 3004
+npm run start             # Inicia el dashboard en http://localhost:3004
 ```
 
 ## Stack

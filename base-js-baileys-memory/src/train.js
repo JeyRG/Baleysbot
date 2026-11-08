@@ -11,8 +11,8 @@ const rl = readline.createInterface({
 });
 
 /**
- * Script para nutrir la base de conocimientos del bot.
- * Soporta entrada manual o desde un archivo.
+ * Script RAG 2.0 para nutrir la base de conocimientos del bot con metadatos.
+ * Soporta entrada interactiva, archivos JSON estructurados y archivos de texto plano.
  */
 async function main() {
     const args = process.argv.slice(2);
@@ -36,38 +36,69 @@ async function processFile(filePath) {
 
     try {
         const rawContent = fs.readFileSync(absolutePath, 'utf8');
+        let items = [];
 
-        // 1. Dividir por cabeceras (ej: */REQUISITOS)
-        // El primer bloque es especial si no tiene */ al inicio
-        const chunks = rawContent.split(/\*\//).map(c => c.trim()).filter(c => c.length > 5);
+        if (absolutePath.endsWith('.json')) {
+            const parsed = JSON.parse(rawContent);
+            if (Array.isArray(parsed)) {
+                items = parsed.map(item => ({
+                    content: typeof item === 'string' ? item : item.content,
+                    metadata: item.metadata || {}
+                })).filter(i => i.content && i.content.trim().length > 5);
+            } else if (parsed.content) {
+                items = [{ content: parsed.content, metadata: parsed.metadata || {} }];
+            }
+        } else {
+            // Dividir por cabeceras (ej: */REQUISITOS)
+            const chunks = rawContent.split(/\*\//).map(c => c.trim()).filter(c => c.length > 5);
+            items = chunks.map(c => ({ content: c, metadata: {} }));
+        }
 
-        console.log(`\n📦 Se detectaron ${chunks.length} bloques de conocimiento.`);
-        console.log('⏳ Iniciando carga masiva a Supabase...\n');
+        console.log(`\n📦 Se detectaron ${items.length} bloques de conocimiento estructurado.`);
+        console.log('⏳ Iniciando vectorización e ingesta a Supabase...\n');
 
-        for (let i = 0; i < chunks.length; i++) {
-            const text = chunks[i];
-            const firstLine = text.split('\n')[0].substring(0, 50);
+        let successCount = 0;
+        let skipCount = 0;
 
-            process.stdout.write(`   [${i + 1}/${chunks.length}] Insertando: "${firstLine}..." `);
+        for (let i = 0; i < items.length; i++) {
+            const { content, metadata } = items[i];
+            const preview = content.split('\n')[0].substring(0, 50);
+
+            process.stdout.write(`   [${i + 1}/${items.length}] "${preview}..." `);
+
+            // Deduplicación: verificar si el contenido ya existe
+            const { data: existing } = await supabase
+                .from('knowledge_base')
+                .select('id')
+                .eq('content', content)
+                .limit(1);
+
+            if (existing && existing.length > 0) {
+                process.stdout.write(`⏭️ YA EXISTE (Saltado)\n`);
+                skipCount++;
+                continue;
+            }
 
             try {
-                const embedding = await getEmbedding(text);
+                const embedding = await getEmbedding(content);
                 const { data, error } = await supabase.from('knowledge_base').insert({
-                    content: text,
-                    embedding: embedding
-                }).select(); // Usar select() para confirmar inserción
+                    content,
+                    metadata: metadata || {},
+                    embedding
+                }).select();
 
                 if (error) {
                     process.stdout.write(`❌ ERROR DB: ${JSON.stringify(error)}\n`);
                 } else {
                     process.stdout.write(`✅ OK (ID: ${data?.[0]?.id || 'N/A'})\n`);
+                    successCount++;
                 }
             } catch (err) {
                 process.stdout.write(`❌ ERROR VECTOR: ${err.message}\n`);
             }
         }
 
-        console.log('\n✨ ¡Carga masiva finalizada con éxito!');
+        console.log(`\n✨ Ingesta completada: ${successCount} nuevos, ${skipCount} existentes.`);
         process.exit(0);
 
     } catch (err) {
@@ -92,13 +123,14 @@ async function interactiveMode() {
             const embedding = await getEmbedding(text);
             const { error } = await supabase.from('knowledge_base').insert({
                 content: text,
-                embedding: embedding
+                metadata: { source: 'interactive' },
+                embedding
             });
 
             if (error) throw error;
             console.log('\n✅ Guardado con éxito.');
         } catch (err) {
-            console.error('\n❌ Error:', err.message);
+            console.error('\n❌ Error al guardar:', err.message);
         } finally {
             rl.close();
         }

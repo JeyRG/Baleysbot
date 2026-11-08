@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getUser } from '@/lib/adminApi';
+import { getUser, adminApi } from '@/lib/adminApi';
 
 interface MessageListProps {
     conversation: any;
@@ -183,32 +183,46 @@ export function MessageList({ conversation, students }: MessageListProps) {
     };
 
     const toggleHandoff = async () => {
-        const newStatus = !isHumanMode;
-        const { error } = await supabase
-            .from('conversations')
-            .update({ status: newStatus ? 'human_active' : 'bot' })
-            .eq('id', conversation.id);
-
-        if (!error) setIsHumanMode(newStatus);
+        const nextState = !isHumanMode;
+        const targetStatus = nextState ? 'human_active' : 'bot';
+        try {
+            await adminApi.setHandoff(conversation.wa_id, targetStatus);
+            setIsHumanMode(nextState);
+        } catch (e) {
+            console.warn('[Handoff] Fallback directo a Supabase:', e);
+            const { error } = await supabase
+                .from('conversations')
+                .update({ status: targetStatus, updated_at: new Date().toISOString() })
+                .eq('id', conversation.id);
+            if (!error) setIsHumanMode(nextState);
+        }
     };
 
     const resolveQuery = async () => {
-        if (!confirm('¿Marcar consulta como resuelta y volver a IA?')) return;
+        if (!confirm('¿Marcar consulta como resuelta y reactivar el bot automático?')) return;
         
-        // Enviar mensaje de cierre
+        const me = getUser();
+        // 1. Enviar mensaje de confirmación al usuario
         const { error: msgError } = await supabase.from('messages').insert({
             wa_id: conversation.wa_id,
-            text: '✅ Tu consulta ha sido resuelta por un asesor. Si tienes más dudas en el futuro, no dudes en escribirnos.',
-            sender_type: 'dashboard'
+            text: '✅ Tu consulta ha sido atendida y resuelta por un asesor. El asistente automático ha sido reactivado para responder tus dudas.',
+            sender_type: 'dashboard',
+            sent_by: me?.id || null,
+            sent_by_name: me?.full_name || me?.username || null
         });
         
-        // Volver a modo bot
+        // 2. Reactivar modo bot vía adminApi con trazabilidad
         if (!msgError) {
-            const { error } = await supabase
-                .from('conversations')
-                .update({ status: 'bot' })
-                .eq('id', conversation.id);
-            if (!error) setIsHumanMode(false);
+            try {
+                await adminApi.setHandoff(conversation.wa_id, 'bot');
+                setIsHumanMode(false);
+            } catch (e) {
+                const { error } = await supabase
+                    .from('conversations')
+                    .update({ status: 'bot', updated_at: new Date().toISOString() })
+                    .eq('id', conversation.id);
+                if (!error) setIsHumanMode(false);
+            }
         }
     };
 

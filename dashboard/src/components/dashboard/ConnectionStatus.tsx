@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getBotUrl } from '@/lib/adminApi';
 
 interface BotStatus {
   connected: boolean;
@@ -18,7 +19,7 @@ export default function ConnectionStatus() {
 
   const fetchStatus = async () => {
     try {
-      const botUrl = process.env.NEXT_PUBLIC_BOT_URL || 'http://localhost:3000';
+      const botUrl = getBotUrl();
       const res = await fetch(`${botUrl}/bot/status`);
       if (!res.ok) throw new Error('Servidor del bot no disponible');
       const data: BotStatus = await res.json();

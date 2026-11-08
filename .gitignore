@@ -36,6 +36,7 @@ yarn-error.log*
 
 # Build artifacts
 dist/
+*.tsbuildinfo
 
 # Datos sensibles / runtime del bot (no versionar)
 **/user_data.json

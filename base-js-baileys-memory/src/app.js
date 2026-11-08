@@ -13,11 +13,22 @@ import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
 import { getGrokCompletion as originalGetGrokCompletion, getTokenUsageSummary } from './grokClient.js'
 
 // Servicios
-import { supabase } from './services/supabaseClient.js'
+import { supabase, supabaseData } from './services/supabaseClient.js'
 import { getEmbedding } from './services/embeddingService.js'
 import { checkInscriptionByDni } from './services/inscriptionService.js'
 import { login, logout, verifyToken, listUsers, createUser, updateUser, deleteUser, getAudit, getAgentStats, writeAudit } from './services/adminAuth.js'
-import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok, getProgramsForFacultyCategory, getCatalog } from './services/catalogService.js'
+import { initCatalog, findProgram, findPrograms, getSummaryContext, findFaculty, getContextForFaculty, findCategory, getContextForCategory, getAllProgramNamesOnly, findProgramFuzzy, getAllProgramsGeneral, getAllProgramsByCategory, getTipoProgramaInfo, getEnrichedContextForGrok, getProgramsForFacultyCategory, getCatalog, formatProgramsCatalogList } from './services/catalogService.js'
+import { loadUsers, saveUser, loadUserData, resetUserData, getLeadsCounter, incrementLeadsCounter } from './services/userService.js'
+
+// Flujos Modulares
+import { flowExpedienteProcesar } from './flows/flowExpediente.js'
+import { resetFlow, solicitudAsesorFlow, mediaFlow, flowPasosInscripcion, flowExamenAdmision } from './flows/flowInscripcion.js'
+
+// Rutas HTTP Modulares
+import { registerKnowledgeRoutes } from './routes/knowledgeRoutes.js'
+import { registerReviewRoutes } from './routes/reviewRoutes.js'
+import { registerAuthRoutes } from './routes/authRoutes.js'
+import { registerMessagingRoutes } from './routes/messagingRoutes.js'
 
 import { fileURLToPath } from 'url';
 const __filenameApp = fileURLToPath(import.meta.url);
@@ -246,46 +257,8 @@ const PORT = process.env.PORT ?? 3000
 const USER_DATA_PATH = path.join(process.cwd(), 'user_data.json')
 const pendingTimers = new Map();
 
-// Gestión de persistencia local
-const loadUsers = () => {
-    try {
-        if (fs.existsSync(USER_DATA_PATH)) return JSON.parse(fs.readFileSync(USER_DATA_PATH, 'utf8'))
-    } catch (e) { console.error('[Bot] Error al cargar user_data:', e) }
-    return {}
-}
 
-const saveUser = (id, data) => {
-    try {
-        const users = loadUsers()
-        users[id] = { ...users[id], ...data }
-        fs.writeFileSync(USER_DATA_PATH, JSON.stringify(users, null, 2))
-    } catch (e) { console.error('[Bot] Error al guardar user_data:', e) }
-}
-
-const loadUserData = (id) => loadUsers()[id] || {};
-
-/**
- * Gestión persistente del contador de leads diarios
- */
-const COUNTER_PATH = path.join(process.cwd(), 'leads_counter.json');
-
-const getLeadsCounter = () => {
-    try {
-        if (!fs.existsSync(COUNTER_PATH)) return { date: new Date().toISOString().split('T')[0], count: 0 };
-        const data = JSON.parse(fs.readFileSync(COUNTER_PATH, 'utf8'));
-        const today = new Date().toISOString().split('T')[0];
-        if (data.date !== today) return { date: today, count: 0 };
-        return data;
-    } catch (e) { return { date: new Date().toISOString().split('T')[0], count: 0 }; }
-};
-
-const incrementLeadsCounter = (limit = 50) => {
-    const data = getLeadsCounter();
-    if (data.count >= limit) return -1; // Indicar límite alcanzado
-    data.count++;
-    fs.writeFileSync(COUNTER_PATH, JSON.stringify(data), 'utf8');
-    return data.count;
-};
+const STOPWORDS_NO_CACHE = /^(si|sí|no|nop|ok|okay|vale|claro|ya|gracias|hola|buenas|informacion|programas|asesor|humano|1|2|3|4|5|todos|todas|ninguno|ninguna)$/i;
 
 /**
  * Lógica de Caché Semántico
@@ -306,9 +279,15 @@ const checkSemanticCache = async (embedding) => {
 
 const saveToCache = async (question, answer, embedding) => {
     try {
+        if (!question || typeof question !== 'string') return;
+        const cleanQ = question.trim().toLowerCase();
+        if (cleanQ.length < 10) return; // Rechazar preguntas cortas (< 10 caracteres)
+        if (STOPWORDS_NO_CACHE.test(cleanQ)) return; // Rechazar stopwords o comandos comunes
+        if (!answer || typeof answer !== 'string' || answer.trim().length < 20) return; // Rechazar respuestas vacías o erróneas
+
         await supabase.from('semantic_cache').insert({
-            question,
-            answer,
+            question: question.trim(),
+            answer: answer.trim(),
             embedding
         })
     } catch (e) { console.error('[Cache] Error al guardar:', e) }
@@ -347,12 +326,63 @@ REGLAS ESTRICTAS:
 }
 
 /**
- * Loguea una interacción del bot para revisión posterior
+ * Sincroniza datos de estudiante y conversación en Supabase
  */
-const logInteraction = async (waId, userQuery, botResponse, embedding, source = 'grok') => {
+async function syncUserToSupabase(waId, user) {
     try {
+        await supabase.from('students').upsert({
+            wa_id: waId,
+            full_name: user?.nombre || null,
+            student_condition: user?.rol || null,
+            phone_number: waId,
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'wa_id' });
+
+        await supabase.from('conversations').upsert({
+            wa_id: waId,
+            metadata: {
+                user_role: user?.rol || null,
+                user_condition: user?.rol || null,
+                full_name: user?.nombre || null
+            },
+            updated_at: new Date().toISOString()
+        }, { onConflict: 'wa_id' });
+    } catch (e) {
+        console.error('[Supabase] Error sincronizando estudiante/conversación:', e.message);
+    }
+}
+
+/**
+ * Activa la transferencia a un asesor humano en Supabase y notifica al usuario
+ */
+async function activateHumanHandoff(waId, flowDynamic) {
+    try {
+        await supabase
+            .from('conversations')
+            .update({ status: 'human_active', updated_at: new Date().toISOString() })
+            .eq('wa_id', waId);
+    } catch (e) {
+        console.error('[Flow] Error activando human_active:', e.message);
+    }
+    return await flowDynamic([
+        '👨‍💼 *Entendido. He transferido tu solicitud a un asesor humano.*',
+        'Uno de nuestros coordinadores se comunicará contigo en los próximos minutos para ayudarte personalmente. Mientras tanto, puedes dejar tu consulta detallada aquí. 👇'
+    ]);
+}
+
+/**
+ * Loguea una interacción del bot para análisis analítico y revisión posterior
+ */
+const logInteraction = async (waId, userQuery, botResponse, embedding, source = 'grok', customName = null, customCondition = null) => {
+    try {
+        const u = loadUserData(waId);
+        const nameToSave = customName || u?.nombre || null;
+        const conditionToSave = customCondition || u?.rol || null;
+
         await supabase.from('chatbot_interactions').insert({
             wa_id: waId,
+            user_name: nameToSave,
+            user_condition: conditionToSave,
             user_query: userQuery,
             bot_response: botResponse || '',
             embedding: embedding || null,
@@ -379,56 +409,41 @@ setInterval(() => {
     }
 }, 10 * 60 * 1000);
 
-// FLUJOS
-const resetFlow = addKeyword(['reiniciar', 'reset', 'configurar', 'borrar'])
-    .addAction(async (ctx, { flowDynamic }) => {
-        saveUser(ctx.from, { nombre: null, esperandoNombre: true })
-
-        try {
-            await supabase.from('conversations').update({ status: 'bot' }).eq('wa_id', ctx.from);
-            console.log(`[Bot] ${ctx.from} fue devuelto a modo automático (bot).`);
-        } catch (e) { console.error('[Bot] Error al restablecer modo manual:', e) }
-
-        await flowDynamic('🚀 Entendido. He borrado tus datos. ¿Cuál es tu nombre completo para empezar?')
-    });
-
-/**
- * Flujo de Solicitud de Asesor Humano
- */
-const solicitudAsesorFlow = addKeyword(['SOLICITUD_ASESOR_MANUAL', 'SOLICITUD_ASESOR', 'asesor', 'ayuda humana', 'hablar con alguien'])
-    .addAction(async (ctx, { provider, flowDynamic }) => {
-        const userId = ctx.from;
-        console.log(`[Handoff] Usuario ${userId} solicitó asesor humano.`);
-
-        try {
-            // 1. Marcar en la base de datos
-            await supabase
-                .from('conversations')
-                .update({ status: 'human_active', updated_at: new Date().toISOString() })
-                .eq('wa_id', userId);
-
-            // 2. Notificar al usuario
-            await flowDynamic([
-                '👨‍💻 *Entendido. He solicitado la intervención de un asesor humano.*',
-                'En breve uno de nuestros coordinadores se unirá al chat para ayudarte personalmente. Mientras tanto, puedes dejar tu consulta aquí. 👇'
-            ]);
-        } catch (e) {
-            console.error('[Handoff] Error al activar modo manual:', e);
-            await flowDynamic('Lo siento, tuve un problema al procesar tu solicitud. Por favor, intenta de nuevo en unos momentos.');
-        }
-    });
-
-/**
- * FLUJO PARA CAPTURAR MULTIMEDIA ENTRANTE (DASHBOARD)
- */
-const mediaFlow = addKeyword(EVENTS.MEDIA)
-    .addAction(async (ctx) => {
-        console.log(`[Bot] Multimedia recibida de ${ctx.from}.`);
-
-    });
 
 // Ayuda de retardo
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
+const ASSETS_DIR = path.join(process.cwd(), 'assets');
+const SAMPLE_FALLBACK = path.join(ASSETS_DIR, 'sample.png');
+
+async function sendSafeMediaList(flowDynamic, items) {
+    for (const item of items) {
+        let mediaPath = item.path;
+        if (!mediaPath || !fs.existsSync(mediaPath)) {
+            if (fs.existsSync(SAMPLE_FALLBACK)) {
+                mediaPath = SAMPLE_FALLBACK;
+            } else {
+                mediaPath = null;
+            }
+        }
+        if (mediaPath) {
+            try {
+                await flowDynamic([{
+                    body: item.caption || '',
+                    media: mediaPath
+                }]);
+            } catch (err) {
+                console.error('[Flow] Error al enviar media:', err.message);
+                if (item.caption) {
+                    await flowDynamic(item.caption);
+                }
+            }
+        } else if (item.caption) {
+            await flowDynamic(item.caption);
+        }
+        await delay(1200);
+    }
+}
 
 function formatSupabaseField(data) {
     if (!data) return '';
@@ -610,105 +625,8 @@ Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado d
     } catch (err) { console.error('Error en procesarEnvioMensaje:', err) }
 }
 
-/**
- * Flujo Unificado de Verificación de Expediente e Inscripción
- */
-const flowExpedienteProcesar = addKeyword(EVENTS.ACTION)
-    .addAction(async (ctx, { state, flowDynamic, provider }) => {
-        const s = await state.getMyState();
-        const dni = s.dni;
-        await flowDynamic('⏳ Consultando tu expediente en nuestra base de datos... un momento.');
 
-        const result = await checkInscriptionByDni(dni);
-        if (result.error) {
-            await flowDynamic(`❌ ${result.error}`);
-        } else {
-            // Saludo inicial y confirmación de inscripción
-            await flowDynamic([
-                `✅ ¡Hola *${result.nombres} ${result.apellidos}*!`,
-                `🎓 Estás correctamente inscrito(a) en:\n*${result.programa}*`
-            ]);
 
-            // Lógica de Expediente (Carpeta de Postulante)
-            if (!result.tieneExpediente) {
-                await flowDynamic([
-                    '⚠️ *FALTA SUBIR TU CARPETA DE POSTULANTE*',
-                    'Para continuar con tu proceso, debes subir tus documentos.',
-                    `📌 **¡Sigue estos pasos para completar tu proceso de admisión!** 🎓✨
-
-**1️⃣ ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II**
-Ingresa al siguiente enlace y completa tu registro con tus datos:
-👉https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&ilr=4
-
-**2️⃣ Realiza el pago por derecho de admisión** 💳
-
-El monto dependerá del programa al que postulas:
-🎓 **Maestría:** S/ 200
-📘 **Segunda Especialidad:** S/ 120
-🎖️ **Doctorado:** S/ 250
-
-💥 **Datos de la cuenta bancaria:**
-🏦 **Banco:** Scotiabank
-**Cuenta:** 000-3747336
-**CCI:** 009-100-000003747336-90
-
-⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
-
-**3️⃣ Revisa los requisitos de admisión** 📄
-
-Verifica la documentación que debes presentar según el programa al que postulas:
-👉 https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php
-
-**4️⃣ Sube tu expediente digital (GED)** 💻
-
-Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:
-👉 https://posgradounac.edu.pe/GED/login.php
-
-Solo necesitarás tu **DNI**, siempre que ya hayas realizado tu inscripción.
-
-**5️⃣ Verifica el estado de tu carpeta** ✅
-
-Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir. Si quiere una atención más personalziada puede comunicarse con el 900969591`
-                ]);
-            } else {
-                const estado = String(result.idEstadoSeguimiento);
-                if (estado === '2') { // Observado
-                    await flowDynamic([
-                        '❌ *TU EXPEDIENTE TIENE UNA OBSERVACIÓN*',
-                        `*Detalle:* ${result.mensajeExpediente || 'Documentos incorrectos o ilegibles.'}`,
-                        '👉 *Acción requerida:* Ingresa de nuevo al sistema (https://posgradounac.edu.pe/GED/) y corrige los documentos observados.'
-                    ]);
-                } else if (estado === '3') { // Aceptado / Correcto
-                    await flowDynamic([
-                        '🎉 *¡TU EXPEDIENTE ESTÁ CORRECTO!*',
-                        'Tus documentos han sido aceptados.',
-                        '👉 *Siguiente paso:* Ingresa al sistema (https://posgradounac.edu.pe/GED/) para obtener el enlace y unirte al *Grupo de WhatsApp* de tu programa.'
-                    ]);
-                } else if (estado === '1' || estado === '4') { // Pendiente / En Evaluacion
-                    await flowDynamic([
-                        '⏳ *TU EXPEDIENTE ESTÁ EN EVALUACIÓN*',
-                        'Tu carpeta de postulante ya fue enviada y se encuentra a la espera de revisión.',
-                        '👉 Por favor, ten paciencia. Te notificaremos o puedes volver a consultar tu estado más adelante.'
-                    ]);
-
-                    const targetProgram = findProgramFuzzy(result.programa);
-                    if (targetProgram && (targetProgram.brochureUrl || targetProgram.brochure)) {
-                        const urlPDF = targetProgram.brochureUrl || targetProgram.brochure;
-                        await delay(1500);
-                        await provider.sendMessage(ctx.from, `📄 Te adjunto el brochure oficial de tu programa:`, {
-                            media: urlPDF,
-                            fileName: `brochure-${targetProgram.nombre}.pdf`.replace(/\s+/g, '_')
-                        });
-                    }
-                } else {
-                    await flowDynamic([
-                        '📄 *Estado de tu expediente:*',
-                        result.mensajeExpediente || 'En proceso de revisión.'
-                    ]);
-                }
-            }
-        }
-    });
 
 
 const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
@@ -741,9 +659,173 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         // --- FIN CONTROL HANDOFF ---
 
         const bodyLower = body.toLowerCase();
+        let user = loadUserData(userId);
+        const cleanBody = normalizeReply(bodyLower);
+        const isAffirmative = isAffirmativeReply(cleanBody);
+        const s = await state.getMyState() || {};
+
+        // --- MANEJO DE CONFIRMACIÓN DE ASESOR (PENDIENTE) ---
+        if (user.esperandoConfirmacionAsesor || s.pendingAdvisor) {
+            if (isAffirmative || cleanBody.includes('asesor') || cleanBody.includes('humano') || cleanBody.includes('coordinador')) {
+                user.esperandoConfirmacionAsesor = false;
+                saveUser(userId, user);
+                await state.update({ pendingAdvisor: null });
+                try {
+                    await supabase
+                        .from('conversations')
+                        .update({ status: 'human_active', updated_at: new Date().toISOString() })
+                        .eq('wa_id', userId);
+                } catch (e) {
+                    console.error('[Flow] Error activando human_active:', e.message);
+                }
+                return await flowDynamic([
+                    '👨‍💼 *Modo Asesor Activado*',
+                    'Uno de nuestros coordinadores se comunicará contigo en los próximos minutos para ayudarte personalmente.',
+                    'Por favor, déjanos tu consulta detallada para asistirte de inmediato. 📋✨'
+                ]);
+            } else if (/^(no|nop|cancelar|ninguno|ninguna)/.test(cleanBody)) {
+                user.esperandoConfirmacionAsesor = false;
+                saveUser(userId, user);
+                await state.update({ pendingAdvisor: null });
+                return await flowDynamic('Entendido. Estaré aquí si necesitas cualquier otra información sobre la Escuela de Posgrado UNAC. ¿Tienes alguna otra consulta? 😊');
+            } else {
+                user.esperandoConfirmacionAsesor = false;
+                saveUser(userId, user);
+                await state.update({ pendingAdvisor: null });
+            }
+        }
+
+        // --- GATING 1: IDENTIFICACIÓN OBLIGATORIA (NOMBRE COMPLETO) ---
+        const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
+
+        if (!user.nombre || user.esperandoNombre) {
+            const looksLikeName = /^[a-záéíóúñüA-ZÁÉÍÓÚÑÜ\s]{3,60}$/.test(body.trim()) && body.trim().split(/\s+/).length >= 1;
+            if (user.esperandoNombre && !greetings.includes(bodyLower) && looksLikeName) {
+                user.nombre = body.trim();
+                user.esperandoNombre = false;
+                user.esperandoRol = true;
+                saveUser(userId, user);
+
+                await syncUserToSupabase(userId, user);
+
+                return await flowDynamic(
+                    `¡Mucho gusto, *${user.nombre}*! 🎓👋\n\n` +
+                    `Para orientarte con la información adecuada, indícame tu condición:\n\n` +
+                    `1️⃣ *Postulante* (deseo postular a un posgrado)\n` +
+                    `2️⃣ *Estudiante* (actualmente cursando en posgrado UNAC)\n` +
+                    `3️⃣ *Egresado* (culminé mis estudios de posgrado)\n\n` +
+                    `👉 _Responde con el número (1, 2 o 3) o escribe tu condición._`
+                );
+            }
+
+            if (user.esperandoNombre && !looksLikeName && body.length > 2 && !greetings.includes(bodyLower)) {
+                return await flowDynamic('Por favor, escríbeme tu *nombre completo* (solo letras). Ejemplo: _Juan Pérez López_ ✍️');
+            }
+
+            user.esperandoNombre = true;
+            saveUser(userId, user);
+            return await flowDynamic(
+                '🌟 *BIENVENIDO A LA ESCUELA DE POSGRADO DE LA UNIVERSIDAD NACIONAL DEL CALLAO* 🎓\n\n' +
+                'Aquí, la excelencia académica se combina con el compromiso y la vocación de servicio.\n\n' +
+                'Para brindarte una atención personalizada, ¿cuál es tu *nombre completo* para empezar? ✍️'
+            );
+        }
+
+        // --- GATING 2: CALIFICACIÓN DE ROL (POSTULANTE / ESTUDIANTE / EGRESADO) ---
+        if (user.esperandoRol || !user.rol) {
+            const isPostulante = /^(1|postulan)/i.test(cleanBody);
+            const isEstudiante = /^(2|estudian|alumn)/i.test(cleanBody);
+            const isEgresado = /^(3|egresad|graduad)/i.test(cleanBody);
+
+            if (isPostulante) {
+                user.rol = 'postulante';
+                user.esperandoRol = false;
+                saveUser(userId, user);
+                await syncUserToSupabase(userId, user);
+
+                await flowDynamic(
+                    `¡Excelente, *${user.nombre}*! 🎓 Como *Postulante*, te presento nuestra oferta académica:\n\n` +
+                    `• 📘 *Maestrías:* Formación avanzada e investigación en diversas especialidades.\n` +
+                    `• 📕 *Doctorados:* El más alto grado académico para la producción científica.\n` +
+                    `• 📗 *Segundas Especialidades:* Especialización técnica y profesional.\n\n` +
+                    `Te comparto nuestro material informativo oficial: 📄👇`
+                );
+                await delay(800);
+                await sendSafeMediaList(flowDynamic, [
+                    { path: path.join(ASSETS_DIR, 'info_1.jpg'), caption: '📌 Programas y modalidades de posgrado UNAC' },
+                    { path: path.join(ASSETS_DIR, 'info_2.jpg'), caption: '🗓️ Calendario y fechas del proceso de admisión' },
+                    { path: path.join(ASSETS_DIR, 'info_3.jpg'), caption: '📝 Requisitos e inversión económica' }
+                ]);
+                await delay(800);
+                return await flowDynamic(
+                    `✨ *Modo Asistente Activo*\n` +
+                    `Puedes hacerme cualquier pregunta o elegir una opción:\n\n` +
+                    `1️⃣ Ver catálogo de *Maestrías*\n` +
+                    `2️⃣ Ver catálogo de *Segundas Especialidades*\n` +
+                    `3️⃣ Ver catálogo de *Doctorados*\n` +
+                    `4️⃣ Hablar con un *Asesor Humano*\n\n` +
+                    `👉 _Escribe un número (1-4), el nombre de un programa o tu consulta._`
+                );
+            } else if (isEstudiante) {
+                user.rol = 'estudiante';
+                user.esperandoRol = false;
+                saveUser(userId, user);
+                await syncUserToSupabase(userId, user);
+
+                await flowDynamic(
+                    `¡Bienvenido, *${user.nombre}*! 📚 Como *Estudiante* de posgrado UNAC, estamos para apoyarte en tus gestiones académicas.\n\n` +
+                    `Te comparto el directorio oficial de contactos y oficinas por facultad:`
+                );
+                await delay(800);
+                await sendSafeMediaList(flowDynamic, [
+                    { path: path.join(ASSETS_DIR, 'contactos_facultades.jpg'), caption: '📞 Directorio de contactos y oficinas por facultad - Posgrado UNAC' }
+                ]);
+                await delay(800);
+                return await flowDynamic(
+                    `¿En qué trámite académico podemos orientarte hoy? ✍️\n\n` +
+                    `1️⃣ *Matrícula y Cronograma*\n` +
+                    `2️⃣ *Pagos y Cuentas Bancarias*\n` +
+                    `3️⃣ *Mesa de Partes Virtual (GED)*\n` +
+                    `4️⃣ *Hablar con un Coordinador / Asesor*\n\n` +
+                    `👉 _Elige una opción (1-4) o escribe tu consulta directamente._`
+                );
+            } else if (isEgresado) {
+                user.rol = 'egresado';
+                user.esperandoRol = false;
+                saveUser(userId, user);
+                await syncUserToSupabase(userId, user);
+
+                await flowDynamic(
+                    `¡Un gusto saludarte, *${user.nombre}*! 🎓 Como *Egresado* de posgrado UNAC, te apoyamos en tus trámites de graduación y certificaciones.\n\n` +
+                    `Te comparto el directorio oficial de contactos y oficinas por facultad:`
+                );
+                await delay(800);
+                await sendSafeMediaList(flowDynamic, [
+                    { path: path.join(ASSETS_DIR, 'contactos_facultades.jpg'), caption: '📞 Directorio de contactos y oficinas por facultad - Posgrado UNAC' }
+                ]);
+                await delay(800);
+                return await flowDynamic(
+                    `¿En qué trámite podemos orientarte hoy? ✍️\n\n` +
+                    `1️⃣ *Grados y Títulos* (Requisitos y expedientes)\n` +
+                    `2️⃣ *Constancias y Certificados de Estudios*\n` +
+                    `3️⃣ *Mesa de Partes Virtual (GED)*\n` +
+                    `4️⃣ *Hablar con un Coordinador / Asesor*\n\n` +
+                    `👉 _Elige una opción (1-4) o escribe tu consulta directamente._`
+                );
+            } else {
+                user.esperandoRol = true;
+                saveUser(userId, user);
+                return await flowDynamic(
+                    `Por favor, elige tu condición ingresando el número correspondiente:\n\n` +
+                    `1️⃣ *Postulante*\n` +
+                    `2️⃣ *Estudiante*\n` +
+                    `3️⃣ *Egresado*\n\n` +
+                    `👉 _Escribe 1, 2 o 3._`
+                );
+            }
+        }
 
         // --- DETECCIÓN AUTOMÁTICA DE DNI / EXPEDIENTE / INSCRIPCIÓN ---
-        const s = await state.getMyState() || {};
         const dniMatch = body.match(/\b\d{8}\b/);
         const isDniOnly = /^\d{8}$/.test(body.replace(/[^0-9]/g, ''));
         const mentionsDni = /(dni|documento|identidad)/i.test(bodyLower);
@@ -768,12 +850,6 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             return await flowDynamic('🔍 *VERIFICACIÓN DE EXPEDIENTE E INSCRIPCIÓN*\n\nPuedo consultarte el estado de tu inscripción y el avance de tu carpeta de postulante.\n\nPor favor, escríbeme tu número de *DNI* (8 dígitos) para continuar.');
         }
         // --- FIN DETECCIÓN EXPEDIENTE ---
-
-        let user = loadUserData(userId);
-        const cleanBody = normalizeReply(bodyLower);
-        const greetings = ['hola', 'buenas', 'inicio', 'comenzar', 'hi', 'hello', 'buenos dias', 'buenas tardes', 'buenas noches'];
-
-        const isAffirmative = isAffirmativeReply(cleanBody);
 
         // 1. Manejo de Agradecimientos
         const thanks = ['gracias', 'muchas gracias', 'gracias asesor', 'perfecto gracias', 'ok gracias', 'entendido gracias'];
@@ -880,33 +956,208 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         }
 
         // 2. Detección de solicitud de asesor humano (desde el usuario)
-        const asesorKeywords = ['solicitud asesor', 'quiero un asesor', 'necesito un asesor', 'ayuda humana', 'hablar con alguien', 'quiero hablar con una persona', 'necesito ayuda real', 'agente humano', 'operador', 'hablar con un humano'];
+        const asesorKeywords = ['solicitud asesor', 'quiero un asesor', 'necesito un asesor', 'ayuda humana', 'hablar con alguien', 'quiero hablar con una persona', 'necesito ayuda real', 'agente humano', 'operador', 'hablar con un humano', 'comunicarme con un asesor'];
         if (asesorKeywords.some(k => bodyLower.includes(k))) {
             console.log(`[Handoff] Usuario ${userId} solicitó asesor humano directamente.`);
-            await supabase
-                .from('conversations')
-                .update({ status: 'human_active', updated_at: new Date().toISOString() })
-                .eq('wa_id', userId);
-            return await flowDynamic([
-                '👨‍💼 *Entendido. He solicitado la intervención de un asesor humano.*',
-                'En breve uno de nuestros coordinadores se unirá al chat para ayudarte personalmente. Mientras tanto, puedes dejar tu consulta aquí. 👇'
-            ]);
+            return await activateHumanHandoff(userId, flowDynamic);
         }
 
-        // 1.5 Respuesta Directa a Categorías (Solo la palabra clave)
-        const categoriesSolo = ['maestrias', 'maestria', 'doctorados', 'doctorado', 'especialidades', 'especialidad'];
-        if (categoriesSolo.includes(bodyLower)) {
-            const cat = findCategory(bodyLower);
-            if (cat) {
-                const menuObj = getContextForCategory(cat);
-                if (menuObj && typeof menuObj === 'object') {
-                    pendingCategoryMenuSelections.set(userId, menuObj);
-                    console.log(`[Flow] Menú interactivo de categoría enviado: ${cat}`);
-                    return await flowDynamic(menuObj.text);
-                } else {
-                    return await flowDynamic(menuObj || `No se encontraron programas.`);
-                }
+        // 2.1 Atajo prioritario: "necesito informacion" o "programas" -> Enviar 3 imágenes
+        const isInfoTrigger = /\b(necesito\s+informaci[oó]n|quiero\s+informaci[oó]n|m[aá]s\s+informaci[oó]n|dame\s+informaci[oó]n|informaci[oó]n\s+general)\b/i.test(bodyLower);
+        const isProgramasTrigger = /\b(programas?|oferta\s+acad[eé]mica|qu[eé]\s+programas?)\b/i.test(bodyLower);
+
+        if ((isInfoTrigger || isProgramasTrigger) && !/\b(maestr[ií]as?|doctorados?|especialidades?)\b/i.test(bodyLower)) {
+            console.log(`[Flow] Disparador de información/programas detectado para ${userId}`);
+            await flowDynamic(`📄 *OFERTA ACADÉMICA Y PROCESO DE ADMISIÓN - UNAC*\nAquí tienes la información oficial:`);
+            await delay(600);
+            await sendSafeMediaList(flowDynamic, [
+                { path: path.join(ASSETS_DIR, 'info_1.jpg'), caption: '📌 Programas y modalidades de posgrado UNAC' },
+                { path: path.join(ASSETS_DIR, 'info_2.jpg'), caption: '🗓️ Calendario y fechas del proceso de admisión' },
+                { path: path.join(ASSETS_DIR, 'info_3.jpg'), caption: '📝 Requisitos e inversión económica' }
+            ]);
+            await delay(600);
+            return await flowDynamic(
+                `👉 Puedes escribir:\n` +
+                `• *Información maestrías*\n` +
+                `• *Información especialidades*\n` +
+                `• *Información doctorados*\n\n` +
+                `O indícame el nombre del programa específico que te interesa. ✨`
+            );
+        }
+
+        // 2.2 Atajos de Catálogos (Maestrías, Especialidades, Doctorados)
+        const isMaestriasTrigger = /\b(informaci[oó]n\s+maestr[ií]as?|maestr[ií]as?)\b/i.test(bodyLower);
+        if (isMaestriasTrigger && !findProgram(body)) {
+            console.log(`[Flow] Listado de maestrías solicitado.`);
+            const msg = formatProgramsCatalogList('maestrias');
+            await logInteraction(userId, body, msg, null, 'catalog');
+            return await flowDynamic(msg);
+        }
+
+        const isEspecialidadesTrigger = /\b(informaci[oó]n\s+(?:segundas?\s+)?especialidades?|(?:segundas?\s+)?especialidades?)\b/i.test(bodyLower);
+        if (isEspecialidadesTrigger && !findProgram(body)) {
+            console.log(`[Flow] Listado de especialidades solicitado.`);
+            const msg = formatProgramsCatalogList('especialidades');
+            await logInteraction(userId, body, msg, null, 'catalog');
+            return await flowDynamic(msg);
+        }
+
+        const isDoctoradosTrigger = /\b(informaci[oó]n\s+doctorados?|doctorados?)\b/i.test(bodyLower);
+        if (isDoctoradosTrigger && !findProgram(body)) {
+            console.log(`[Flow] Listado de doctorados solicitado.`);
+            const msg = formatProgramsCatalogList('doctorados');
+            await logInteraction(userId, body, msg, null, 'catalog');
+            return await flowDynamic(msg);
+        }
+
+        // 2.3 Opciones Guiadas y Menú por Rol (Postulante / Estudiante / Egresado)
+        const isOption1 = /^(1|uno|opci[oó]n\s*1)$/i.test(cleanBody);
+        const isOption2 = /^(2|dos|opci[oó]n\s*2)$/i.test(cleanBody);
+        const isOption3 = /^(3|tres|opci[oó]n\s*3)$/i.test(cleanBody);
+        const isOption4 = /^(4|cuatro|opci[oó]n\s*4)$/i.test(cleanBody);
+
+        // Intenciones específicas de Estudiante
+        const isMatriculaTrigger = /\b(matr[ií]cula|cronograma|inscribir\s+cursos|asignaturas|sga)\b/i.test(bodyLower);
+        const isPagosTrigger = /\b(pagos?|cuotas?|scotiabank|banco|comprobante|voucher|arancel)\b/i.test(bodyLower);
+        const isGedTrigger = /\b(ged|mesa\s+de\s+partes|tr[aá]mite\s+virtual)\b/i.test(bodyLower);
+
+        // Intenciones específicas de Egresado
+        const isGradosTrigger = /\b(grados?|t[ií]tulos?|tesis|graduaci[oó]n|sustentaci[oó]n|diploma)\b/i.test(bodyLower);
+        const isConstanciasTrigger = /\b(constancias?|certificados?|no\s+adeudo)\b/i.test(bodyLower);
+
+        if (user.rol === 'estudiante') {
+            if (isOption1 || isMatriculaTrigger) {
+                const msg = `📅 *MATRÍCULA Y CRONOGRAMA ACADÉMICO - POSGRADO UNAC*\n\n` +
+                    `• *Sistema SGA (Matrícula en línea):* https://sga.unac.edu.pe\n` +
+                    `• *Cronograma Académico:* Las fechas de matrícula regular y extemporánea se rigen por la resolución de cada facultad y el calendario académico oficial.\n` +
+                    `• *Requisitos:* Estar al día con las cuotas académicas y registrar tus asignaturas en el SGA.\n\n` +
+                    `¿Deseas ayuda adicional o comunicarte con la coordinación de tu facultad? Responde *asesor*. 👨‍💼`;
+                await logInteraction(userId, body, msg, null, 'student_guide');
+                return await flowDynamic(msg);
             }
+            if (isOption2 || isPagosTrigger) {
+                const msg = `💳 *PAGOS Y CUENTAS BANCARIAS - POSGRADO UNAC*\n\n` +
+                    `• *Entidad:* Banco Scotiabank (Ventanilla, Agentes o App Scotiabank).\n` +
+                    `• *Identificación:* Brindar tu número de DNI o código de alumno al realizar el pago.\n` +
+                    `• *Validación obligatoria:* Todo comprobante de pago debe registrarse en la plataforma GED para su validación oficial: https://posgradounac.edu.pe/GED/\n\n` +
+                    `⚠️ Conserva tu voucher o constancia digital para cualquier gestión académica.`;
+                await logInteraction(userId, body, msg, null, 'student_guide');
+                return await flowDynamic(msg);
+            }
+            if (isOption3 || isGedTrigger) {
+                const msg = `📑 *MESA DE PARTES VIRTUAL (GED) - UNAC*\n\n` +
+                    `La plataforma de Gestión Electrónica de Documentos (GED) es el canal oficial para todo trámite:\n\n` +
+                    `🌐 *Portal GED:* https://posgradounac.edu.pe/GED/\n` +
+                    `⏰ *Horario de recepción:* Lunes a Viernes de 08:00 a 16:00 horas.\n\n` +
+                    `Puedes ingresar solicitudes de convalidación, registro de comprobantes, reclamos o cartas a la Dirección de Posgrado.`;
+                await logInteraction(userId, body, msg, null, 'student_guide');
+                return await flowDynamic(msg);
+            }
+            if (isOption4) {
+                return await activateHumanHandoff(userId, flowDynamic);
+            }
+        }
+
+        if (user.rol === 'egresado') {
+            if (isOption1 || isGradosTrigger) {
+                const msg = `🎓 *GRADOS Y TÍTULOS - POSGRADO UNAC*\n\n` +
+                    `Para la obtención del grado académico de Maestro o Doctor:\n\n` +
+                    `1️⃣ Aprobar el 100% de créditos del plan de estudios del programa.\n` +
+                    `2️⃣ Acreditar el idioma extranjero correspondiente (Intermedio para Maestría / Avanzado para Doctorado).\n` +
+                    `3️⃣ Elaborar, sustentar y aprobar la tesis de posgrado o trabajo de investigación.\n` +
+                    `4️⃣ Presentar tu expediente de graduación mediante el portal GED: https://posgradounac.edu.pe/GED/\n\n` +
+                    `Si requieres orientación con tu expediente de grado, escribe *asesor*. 👨‍💼`;
+                await logInteraction(userId, body, msg, null, 'graduate_guide');
+                return await flowDynamic(msg);
+            }
+            if (isOption2 || isConstanciasTrigger) {
+                const msg = `📜 *CONSTANCIAS Y CERTIFICADOS DE ESTUDIOS*\n\n` +
+                    `Trámites disponibles para egresados de posgrado:\n\n` +
+                    `• *Certificado de Estudios de Posgrado*\n` +
+                    `• *Constancia de Egresado*\n` +
+                    `• *Constancia de No Adeudo (Académico y Biblioteca)*\n\n` +
+                    `📌 *Procedimiento:* Paga la tasa respectiva en Scotiabank y adjunta la solicitud junto al comprobante en la mesa de partes GED: https://posgradounac.edu.pe/GED/`;
+                await logInteraction(userId, body, msg, null, 'graduate_guide');
+                return await flowDynamic(msg);
+            }
+            if (isOption3 || isGedTrigger) {
+                const msg = `📑 *MESA DE PARTES VIRTUAL (GED) - UNAC*\n\n` +
+                    `Ingresa tus expedientes de graduación, solicitudes de constancia o trámites a la Dirección de Posgrado:\n\n` +
+                    `🌐 *Enlace:* https://posgradounac.edu.pe/GED/\n` +
+                    `⏰ *Horario de atención:* Lunes a Viernes de 08:00 a 16:00 horas.`;
+                await logInteraction(userId, body, msg, null, 'graduate_guide');
+                return await flowDynamic(msg);
+            }
+            if (isOption4) {
+                return await activateHumanHandoff(userId, flowDynamic);
+            }
+        }
+
+        if (user.rol === 'postulante') {
+            if (isOption1) {
+                const msg = formatProgramsCatalogList('maestrias');
+                await logInteraction(userId, body, msg, null, 'catalog');
+                return await flowDynamic(msg);
+            }
+            if (isOption2) {
+                const msg = formatProgramsCatalogList('especialidades');
+                await logInteraction(userId, body, msg, null, 'catalog');
+                return await flowDynamic(msg);
+            }
+            if (isOption3) {
+                const msg = formatProgramsCatalogList('doctorados');
+                await logInteraction(userId, body, msg, null, 'catalog');
+                return await flowDynamic(msg);
+            }
+            if (isOption4) {
+                return await activateHumanHandoff(userId, flowDynamic);
+            }
+        }
+
+        // 2.4 Manejo de afirmaciones / negaciones huérfanas (sin confirmación previa activa)
+        const isOrphanAffirmative = isAffirmativeReply(cleanBody) || /^(si|sí|claro|por favor|porfa|dale|ok|okay|vale|yes)$/i.test(cleanBody);
+        const isOrphanNegative = /^(no|nop|para nada|ninguno|ninguna)$/i.test(cleanBody);
+
+        if (isOrphanAffirmative) {
+            if (user.rol === 'postulante') {
+                return await flowDynamic(
+                    `¡Perfecto, *${user.nombre || 'estimado'}*! 😊 ¿En qué te gustaría orientarte?\n\n` +
+                    `1️⃣ Ver catálogo de *Maestrías*\n` +
+                    `2️⃣ Ver catálogo de *Segundas Especialidades*\n` +
+                    `3️⃣ Ver catálogo de *Doctorados*\n` +
+                    `4️⃣ Hablar directamente con un *Asesor Humano*\n\n` +
+                    `👉 _Escribe el número de tu preferencia o hazme tu consulta específica._`
+                );
+            } else if (user.rol === 'estudiante') {
+                return await flowDynamic(
+                    `¡Entendido, *${user.nombre || 'estimado'}*! 📚 ¿Con qué trámite te ayudamos?\n\n` +
+                    `1️⃣ *Matrícula y Cronograma*\n` +
+                    `2️⃣ *Pagos y Cuentas Bancarias*\n` +
+                    `3️⃣ *Mesa de Partes Virtual (GED)*\n` +
+                    `4️⃣ *Hablar con un Coordinador / Asesor*\n\n` +
+                    `👉 _Responde con el número (1-4) o escribe tu trámite._`
+                );
+            } else if (user.rol === 'egresado') {
+                return await flowDynamic(
+                    `¡Excelente, *${user.nombre || 'estimado'}*! 🎓 ¿Qué gestión deseas realizar?\n\n` +
+                    `1️⃣ *Grados y Títulos*\n` +
+                    `2️⃣ *Constancias y Certificados*\n` +
+                    `3️⃣ *Mesa de Partes Virtual (GED)*\n` +
+                    `4️⃣ *Hablar con un Coordinador / Asesor*\n\n` +
+                    `👉 _Responde con el número (1-4) o escribe tu consulta._`
+                );
+            } else {
+                return await flowDynamic(
+                    `¡Entendido! ¿En qué programa o trámite de Posgrado UNAC te gustaría que te oriente? 🎓`
+                );
+            }
+        }
+
+        if (isOrphanNegative) {
+            return await flowDynamic(
+                `Entendido, *${user.nombre || 'estimado'}*. Si necesitas información sobre admisión, matrículas o trámites de posgrado, estaré aquí para ayudarte. 😊\n\n` +
+                `Si en algún momento prefieres hablar con una persona, solo escribe *asesor*. ¡Que tengas un excelente día! ✨`
+            );
         }
 
         const categoryIntent = findCategory(bodyLower);
@@ -1100,45 +1351,20 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             return await flowDynamic(getContextForFaculty(facultyMatch));
         }
 
-        // 2. Confirmación de Asesor (REACCION A "SI")
-        if (isAffirmative && body.split(' ').length <= 4) {
-            if (s.pendingAdvisor) {
-                await state.update({ pendingAdvisor: null });
-                return gotoFlow(solicitudAsesorFlow);
-            }
-        }
-
-        // 3. Registro de Nombre
-        if (!user.nombre || user.esperandoNombre) {
-            const looksLikeName = /^[a-záéíóúñüA-ZÁÉÍÓÚÑÜ\s]{3,60}$/.test(body.trim()) && body.split(' ').length >= 1;
-            if (user.esperandoNombre && !greetings.includes(bodyLower) && looksLikeName) {
-                user.nombre = body.trim();
-                user.esperandoNombre = false;
-                saveUser(userId, user);
-
-                await supabase.from('students').upsert({ wa_id: userId, full_name: body.trim(), phone_number: ctx.from }).select()
-
-                return await flowDynamic(`¡Excelente, *${user.nombre}*! 🎓 Soy el Asesor Académico de Posgrado UNAC. ¿En qué programa estás interesado? Tenemos Maestrías, Doctorados y Especialidades. ✨`);
-            }
-            if (user.esperandoNombre && !looksLikeName && body.length > 2 && !greetings.includes(bodyLower)) {
-                return await flowDynamic('Por favor, escríbeme tu *nombre completo* (solo letras). Ejemplo: _Juan Pérez López_ ✍️');
-            }
-            user.esperandoNombre = true;
-            saveUser(userId, user);
-            return await flowDynamic('🌟 *BIENVENIDO A LA ESCUELA DE POSGRADO DE LA UNIVERSIDAD NACIONAL DEL CALLAO* 🌟\n\nAquí, la excelencia académica se combina con el compromiso y la vocación de servicio, formando líderes que impactan en la sociedad.\n\n¡Es momento de crecer juntos! ¿Cuál es tu *nombre completo* para empezar? ✍️');
-        }
-
         // 4. Caché Semántico
         let embedding = null;
+        const isEligibleForCache = body.trim().length >= 8 && !STOPWORDS_NO_CACHE.test(cleanBody);
+
         try {
-
-
-            embedding = await getEmbedding(body);
-            if (embedding) {
-                const cachedAnswer = await checkSemanticCache(embedding);
-                if (cachedAnswer) {
-                    console.log(`[Cache] Coincidencia encontrada para: "${body}"`);
-                    return await flowDynamic(cachedAnswer);
+            if (isEligibleForCache) {
+                embedding = await getEmbedding(body);
+                if (embedding) {
+                    const cachedAnswer = await checkSemanticCache(embedding);
+                    if (cachedAnswer) {
+                        console.log(`[Cache] Coincidencia encontrada para: "${body}"`);
+                        await logInteraction(userId, body, cachedAnswer, null, 'cache');
+                        return await flowDynamic(cachedAnswer);
+                    }
                 }
             }
         } catch (e) { console.error('[Flow] Error en embedding/cache:', e) }
@@ -1175,24 +1401,37 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             }
         }
 
-        // 5.5 RAG Complementario (Supabase Knowledge Base)
+        // 5.5 RAG 2.0 Complementario (Supabase Knowledge Base con Metadata)
+        if (!embedding && isEligibleForCache) {
+            try {
+                embedding = await getEmbedding(body);
+            } catch (embErr) {
+                console.error('[Flow] Error obteniendo embedding para RAG 2.0:', embErr.message);
+            }
+        }
         if (embedding) {
-            const { data: documents } = await supabase.rpc('match_documents', {
+            const filterMeta = {};
+            if (categoryMatch) filterMeta.tipo = categoryMatch;
+
+            const { data: documents } = await supabase.rpc('match_documents_filtered', {
                 query_embedding: embedding,
-                match_threshold: 0.78, // Umbral de confianza
-                match_count: 3
+                match_threshold: 0.45, // Calibrado para MiniLM en español
+                match_count: 3,
+                filter_meta: filterMeta
             });
 
             if (documents && documents.length > 0) {
                 const extraContext = documents.map(d => d.content).join('\n\n');
                 dynamicContext += `\n\n${extraContext}`;
-                console.log(`[RAG] Información adicional recuperada de Supabase.`);
+                console.log(`[RAG 2.0] ${documents.length} fragmentos recuperados de Supabase.`);
             } else {
                 // REGISTRO DE DUDA NO RESUELTA (Feedback Loop)
-                console.log(`[RAG] ⚠️ Sin coincidencia clara. Registrando duda para entrenamiento...`);
+                console.log(`[RAG 2.0] ⚠️ Sin coincidencia clara. Registrando duda para entrenamiento...`);
                 await supabase.from('unresolved_queries').insert({
                     query: body,
                     wa_id: userId,
+                    user_name: user.nombre || null,
+                    user_condition: user.rol || null,
                     embedding: embedding
                 });
             }
@@ -1216,8 +1455,10 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             if (isSolicitudAsesor && !cleanResponse) {
                 // La IA no supo responder — preguntar al usuario si desea un asesor
                 console.log(`[Flow] IA no pudo responder para ${userId}. Ofreciendo asesor.`);
-                await flowDynamic('Lo siento, no tengo suficiente información para responder eso. 😔\n\n¿Deseas que te conecte con un *asesor humano*? Responde *sí* o escríbeme otra consulta.');
+                user.esperandoConfirmacionAsesor = true;
+                saveUser(userId, user);
                 await state.update({ pendingAdvisor: true });
+                return await flowDynamic('Lo siento, no tengo suficiente información en mi sistema para responder eso con certeza. 😔\n\n¿Deseas que te comunique con un *asesor humano*? Uno de nuestros coordinadores se comunicará contigo en los próximos minutos para ayudarte personalmente. 👨‍💼📞\n\n👉 Responde *SÍ* para transferirte con un asesor o escribe tu consulta de otra manera.');
             } else {
                 if (cleanResponse) await flowDynamic(cleanResponse);
 
@@ -1265,11 +1506,25 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 // Si la IA además incluyó [SOLICITUD_ASESOR] con texto extra, ofrecer asesor sin forzar
                 if (isSolicitudAsesor) {
                     console.log(`[Flow] IA sugirió derivación para ${userId}. Ofreciendo asesor.`);
+                    await delay(800);
+                    await flowDynamic(
+                        '¿Deseas que te comunique con un *asesor humano*? Uno de nuestros coordinadores se comunicará contigo en los próximos minutos para ayudarte personalmente. 👨‍💼📞\n\n' +
+                        '👉 Responde *SÍ* para transferirte con un asesor.'
+                    );
+                    user.esperandoConfirmacionAsesor = true;
+                    saveUser(userId, user);
                     await state.update({ pendingAdvisor: true });
                 }
             }
         } else {
-            await flowDynamic("Lo siento, tuve un problema al procesar tu consulta. ¿Podrías repetirla? 🔄");
+            user.esperandoConfirmacionAsesor = true;
+            saveUser(userId, user);
+            await state.update({ pendingAdvisor: true });
+            await flowDynamic(
+                'Lo siento, no pude procesar tu consulta con exactitud. 😔\n\n' +
+                '¿Deseas que te comunique con un *asesor humano*? Uno de nuestros coordinadores se comunicará contigo en los próximos minutos para ayudarte personalmente. 👨‍💼📞\n\n' +
+                '👉 Responde *SÍ* para transferirte con un asesor o escribe tu consulta de otra manera.'
+            );
         }
     });
 
@@ -1306,80 +1561,6 @@ const processApiQueue = async (provider) => {
     isProcessingQueue = false;
 };
 
-const flowPasosInscripcion = addKeyword([
-    'pasos', 'inscribirme', 'inscribirse', 'proceso', 'como hago para inscribirme', 'como me inscribo'
-], { regex: false })
-    .addAction(async (ctx, { flowDynamic }) => {
-        const infoM = getTipoProgramaInfo('maestrias');
-        const infoD = getTipoProgramaInfo('doctorados');
-        const infoE = getTipoProgramaInfo('especialidades');
-
-        const costoM = infoM?.costos || 'S/ 200';
-        const costoD = infoD?.costos || 'S/ 250';
-        const costoE = infoE?.costos || 'S/ 120';
-        const cuenta = infoM?.numero_cuenta || '000-3747336\n**CCI:** 009-100-000003747336-90';
-
-        const respuesta = `📌 **¡Paso a paso para completar tu proceso de admisión!** 🎓✨
-
-**1️⃣ Realiza tu inscripción**
-Ingresa al siguiente enlace y completa tu registro con tus datos:
-👉 https://posgradounac.edu.pe/INSCRIPCION/
-
-**2️⃣ Realiza el pago por derecho de admisión** 💳
-
-El monto dependerá del programa al que postulas:
-🎓 **Maestría:** ${costoM}
-📘 **Segunda Especialidad:** ${costoE}
-🎖️ **Doctorado:** ${costoD}
-
-💥 **Datos de la cuenta bancaria:**
-🏦 **Banco:** Scotiabank
-**Cuenta:** ${cuenta}
-
-ÚNETE A NUESTRO GRUPO DE WHATSAPP PARA EL PROCESO DE ADMISION 2026-II
-👉https://chat.whatsapp.com/DyKT9mklDUa8CrlemeJorl
-
-⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
-
-**3️⃣ Revisa los requisitos de admisión** 📄
-
-Verifica la documentación que debes presentar según el programa al que postulas:
-👉 https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php
-
-**4️⃣ Sube tu expediente digital (GED)** 💻
-
-Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:
-👉 https://posgradounac.edu.pe/GED/login.php
-
-Solo necesitarás tu **DNI**, siempre que ya hayas realizado tu inscripción.
-
-**5️⃣ Verifica el estado de tu carpeta** ✅
-
-Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir.`;
-
-        // Loguear interacción para entrenamiento
-        await logInteraction(ctx.from, ctx.body, respuesta, null, 'catalog');
-        return await flowDynamic(respuesta);
-    });
-
-const flowExamenAdmision = addKeyword([
-    'examen', 'evaluacion', 'entrevista', 'en que consiste el examen', 'como es el examen', 'hay examen', 'en que consiste la evaluacion'
-], { regex: false })
-    .addAction(async (ctx, { flowDynamic }) => {
-        const respuesta = `📝 *Sobre la Evaluación de Admisión - Posgrado UNAC*
-
-Te comento que nuestro proceso de admisión *no es un examen escrito tradicional ni descalificatorio*. Consiste en dos etapas sencillas:
-
-1️⃣ *Evaluación de Expediente:* Revisamos tu CV y los documentos que subas a la plataforma GED.
-2️⃣ *Entrevista Personal:* Una breve charla virtual para conocer tu perfil y expectativas.
-
-🗓️ *Fechas clave:* Las entrevistas se llevarán a cabo los últimos días de marzo del 2027.
-
-¿Te gustaría que te envíe los pasos para iniciar tu inscripción? 🎓`;
-
-        await logInteraction(ctx.from, ctx.body, respuesta, null, 'catalog');
-        return await flowDynamic(respuesta);
-    });
 
 const main = async () => {
     console.log('[Bot] Inicializando catálogo desde Supabase...');
@@ -1624,8 +1805,8 @@ const main = async () => {
     // 1. Escuchar mensajes enviados desde el Dashboard
     const channel = supabase.channel('dashboard-send')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'sender_type=eq.dashboard' }, async (payload) => {
-            const { wa_id, text, media_url } = payload.new;
-            console.log(`[Dashboard] 📩 Recibida solicitud de envío para ${wa_id}`);
+            const { id: msgId, wa_id, text, media_url, sent_by, sent_by_name } = payload.new;
+            console.log(`[Dashboard] 📩 Recibida solicitud de envío para ${wa_id} (Operador: ${sent_by_name || 'Desconocido'})`);
 
             // Asegurar formato de número correcto
             let target = wa_id;
@@ -1643,6 +1824,20 @@ const main = async () => {
                     await adapterProvider.sendMessage(target, text, {});
                 }
                 console.log(`[Dashboard] ✅ Mensaje enviado exitosamente a ${target}`);
+
+                // Trazabilidad en Audit Log: registrar el envío del operador
+                await writeAudit({
+                    actorId: sent_by || null,
+                    actorUsername: sent_by_name || 'operador',
+                    action: 'send_message',
+                    targetType: 'message',
+                    targetId: msgId ? String(msgId) : cleanWa,
+                    details: {
+                        wa_id: cleanWa,
+                        has_media: !!media_url,
+                        text_preview: text ? (text.length > 80 ? text.substring(0, 80) + '...' : text) : 'Archivo adjunto'
+                    }
+                });
             } catch (err) {
                 console.error(`[Dashboard] ❌ ERROR al enviar a ${target}:`, err);
                 _dashboardPendingSends.delete(`${cleanWa}:${text || ''}`);
@@ -1650,442 +1845,9 @@ const main = async () => {
         })
         .subscribe();
 
-    // --- NUEVOS ENDPOINTS PARA GESTIÓN DE RAG (ENTRENAMIENTO) ---
-
-    // Listar Dudas Pendientes (Feedback Loop)
-    adapterProvider.server.get('/bot/unresolved', async (req, res) => {
-
-        try {
-            const { data, error } = await supabase
-                .from('unresolved_queries')
-                .select('*')
-                .eq('resolved', false)
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Resolver una duda: Mover a Knowledge Base y marcar como resuelta
-    adapterProvider.server.post('/bot/resolve', async (req, res) => {
-
-        try {
-            const { id, content } = req.body;
-            if (!id || !content) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'ID y contenido son requeridos' }));
-            }
-
-            console.log(`[RAG Admin] Resolviendo duda ${id} -> Entrenando bot...`);
-            const embedding = await getEmbedding(content);
-
-            // 1. Insertar en Knowledge Base
-            const { error: insertError } = await supabase
-                .from('knowledge_base')
-                .insert({ content, embedding });
-
-            if (insertError) throw insertError;
-
-            // 2. Marcar como resuelta
-            const { error: updateError } = await supabase
-                .from('unresolved_queries')
-                .update({ resolved: true })
-                .eq('id', id);
-
-            if (updateError) throw updateError;
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Listar Base de Conocimientos
-    adapterProvider.server.get('/bot/knowledge', async (req, res) => {
-
-        try {
-            const { data, error } = await supabase
-                .from('knowledge_base')
-                .select('id, content, metadata, created_at')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Agregar nuevo fragmento con embedding
-    adapterProvider.server.post('/bot/knowledge', async (req, res) => {
-
-        try {
-            const { content, metadata } = req.body;
-            if (!content) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'El contenido es requerido' }));
-            }
-
-            console.log(`[RAG Admin] Generando embedding para nuevo fragmento...`);
-            const embedding = await getEmbedding(content);
-
-            const { data, error } = await supabase
-                .from('knowledge_base')
-                .insert({
-                    content,
-                    metadata: metadata || {},
-                    embedding
-                })
-                .select();
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, data: data[0] }));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Actualizar fragmento y su embedding
-    adapterProvider.server.put('/bot/knowledge/:id', async (req, res) => {
-
-        try {
-            const { id } = req.params;
-            const { content, metadata } = req.body;
-            if (!content) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'El contenido es requerido' }));
-            }
-
-            console.log(`[RAG Admin] Actualizando fragmento ID ${id}...`);
-            const embedding = await getEmbedding(content);
-
-            const { data, error } = await supabase
-                .from('knowledge_base')
-                .update({
-                    content,
-                    metadata: metadata || {},
-                    embedding
-                })
-                .eq('id', id)
-                .select();
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, data: data[0] }));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Eliminar fragmento
-    adapterProvider.server.delete('/bot/knowledge/:id', async (req, res) => {
-
-        try {
-            const { id } = req.params;
-            const { error } = await supabase
-                .from('knowledge_base')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, message: 'Fragmento eliminado' }));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // --- ENDPOINTS MEMORIA SEMÁNTICA (CACHE) ---
-
-    // Listar Memoria Semántica
-    adapterProvider.server.get('/bot/cache', async (req, res) => {
-        try {
-            const { data, error } = await supabase
-                .from('semantic_cache')
-                .select('id, question, answer, created_at')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-        } catch (e) {
-            console.error('[Dashboard] Error al listar caché:', e);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: e.message }));
-        }
-    });
-
-    // Actualizar respuesta en la memoria
-    adapterProvider.server.put('/bot/cache/:id', async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { answer } = req.body;
-
-            if (!answer) {
-                res.statusCode = 400;
-                return res.end(JSON.stringify({ error: 'La respuesta es requerida' }));
-            }
-
-            const { error } = await supabase
-                .from('semantic_cache')
-                .update({ answer })
-                .eq('id', id);
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
-        } catch (e) {
-            console.error('[Dashboard] Error al actualizar caché:', e);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: e.message }));
-        }
-    });
-
-    // Eliminar entrada de la memoria
-    adapterProvider.server.delete('/bot/cache/:id', async (req, res) => {
-        try {
-            const { id } = req.params;
-
-            // Caso especial: Limpiar toda la memoria
-            if (id === 'all') {
-                const { error } = await supabase
-                    .from('semantic_cache')
-                    .delete()
-                    .neq('id', '00000000-0000-0000-0000-000000000000'); // Borrar todo
-
-                if (error) throw error;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ success: true, message: 'Memoria limpiada totalmente' }));
-            }
-
-            const { error } = await supabase
-                .from('semantic_cache')
-                .delete()
-                .eq('id', id);
-
-            if (error) throw error;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true }));
-        } catch (e) {
-            console.error('[Dashboard] Error al eliminar caché:', e);
-            res.statusCode = 500;
-            res.end(JSON.stringify({ error: e.message }));
-        }
-    });
-
-
-
-    // --- ENDPOINTS DE REVISIÓN DE RESPUESTAS (ENTRENAMIENTO) ---
-
-    // Listar interacciones pendientes de revisión
-    adapterProvider.server.get('/bot/responses-review', async (req, res) => {
-        try {
-            const reviewed = req.query?.reviewed;
-            const source = req.query?.source;
-            const limit = parseInt(req.query?.limit) || 50;
-
-            let query = supabase
-                .from('chatbot_interactions')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(limit);
-
-            if (reviewed === 'false') {
-                query = query.eq('reviewed', false);
-            } else if (reviewed === 'true') {
-                query = query.eq('reviewed', true);
-            }
-
-            if (source) {
-                query = query.eq('source', source);
-            }
-
-            const { data, error } = await query;
-            if (error) throw error;
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(data));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Aprobar una respuesta como correcta → guardar en semantic_cache
-    adapterProvider.server.post('/bot/responses-review/:id/approve', async (req, res) => {
-        try {
-            const { id } = req.params;
-
-            // 1. Obtener la interacción
-            const { data: interaction, error: fetchErr } = await supabase
-                .from('chatbot_interactions')
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (fetchErr || !interaction) {
-                res.statusCode = 404;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'Interacción no encontrada' }));
-            }
-
-            // 2. Generar embedding si no existe
-            let embeddingToSave = interaction.embedding;
-            if (!embeddingToSave) {
-                embeddingToSave = await getEmbedding(interaction.user_query);
-            }
-
-            // 3. Guardar en semantic_cache
-            if (embeddingToSave) {
-                await supabase.from('semantic_cache').insert({
-                    question: interaction.user_query,
-                    answer: interaction.bot_response,
-                    embedding: embeddingToSave,
-                });
-            }
-
-            // 4. Marcar como revisada y correcta
-            await supabase
-                .from('chatbot_interactions')
-                .update({ reviewed: true, is_correct: true })
-                .eq('id', id);
-
-            console.log(`[Review] ✅ Interacción ${id} aprobada y guardada en caché.`);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, message: 'Respuesta aprobada y guardada en caché semántico' }));
-        } catch (err) {
-            console.error('[Review] Error al aprobar:', err);
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Corregir una respuesta incorrecta → guardar corrección en cache + knowledge_base
-    adapterProvider.server.post('/bot/responses-review/:id/correct', async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { corrected_response } = req.body;
-
-            if (!corrected_response) {
-                res.statusCode = 400;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'Se requiere corrected_response en el body' }));
-            }
-
-            // 1. Obtener la interacción original
-            const { data: interaction, error: fetchErr } = await supabase
-                .from('chatbot_interactions')
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (fetchErr || !interaction) {
-                res.statusCode = 404;
-                res.setHeader('Content-Type', 'application/json');
-                return res.end(JSON.stringify({ error: 'Interacción no encontrada' }));
-            }
-
-            // 2. Generar embedding
-            let embeddingToSave = interaction.embedding;
-            if (!embeddingToSave) {
-                embeddingToSave = await getEmbedding(interaction.user_query);
-            }
-
-            // 3. Guardar respuesta CORREGIDA en semantic_cache
-            if (embeddingToSave) {
-                await supabase.from('semantic_cache').insert({
-                    question: interaction.user_query,
-                    answer: corrected_response,
-                    embedding: embeddingToSave,
-                });
-            }
-
-            // 4. Guardar en knowledge_base para enriquecer el RAG
-            const kbEmbedding = await getEmbedding(corrected_response);
-            if (kbEmbedding) {
-                await supabase.from('knowledge_base').insert({
-                    content: `Pregunta: ${interaction.user_query}\nRespuesta correcta: ${corrected_response}`,
-                    embedding: kbEmbedding,
-                    metadata: { corrected_from: id, original_response: interaction.bot_response },
-                });
-            }
-
-            // 5. Marcar como revisada e incorrecta con la corrección
-            await supabase
-                .from('chatbot_interactions')
-                .update({
-                    reviewed: true,
-                    is_correct: false,
-                    corrected_response: corrected_response,
-                })
-                .eq('id', id);
-
-            console.log(`[Review] ✏️ Interacción ${id} corregida. Guardada en caché + knowledge_base.`);
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: true, message: 'Respuesta corregida y guardada en caché semántico + base de conocimientos' }));
-        } catch (err) {
-            console.error('[Review] Error al corregir:', err);
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // Estadísticas de revisión
-    adapterProvider.server.get('/bot/responses-review/stats', async (req, res) => {
-        try {
-            const { data: allData, error } = await supabase
-                .from('chatbot_interactions')
-                .select('reviewed, is_correct, source');
-
-            if (error) throw error;
-
-            const stats = {
-                total: allData.length,
-                pending: allData.filter(d => !d.reviewed).length,
-                approved: allData.filter(d => d.reviewed && d.is_correct === true).length,
-                corrected: allData.filter(d => d.reviewed && d.is_correct === false).length,
-                by_source: {},
-            };
-
-            allData.forEach(d => {
-                stats.by_source[d.source] = (stats.by_source[d.source] || 0) + 1;
-            });
-
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(stats));
-        } catch (err) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: err.message }));
-        }
-    });
-
-    // --- FIN INTEGRACIÓN DASHBOARD PREMIUM ---
+    // Rutas modulares de Conocimiento, RAG y Revisión
+    registerKnowledgeRoutes(adapterProvider.server, { supabase, getEmbedding });
+    registerReviewRoutes(adapterProvider.server, { supabase, getEmbedding });
 
     const { handleCtx, httpServer } = await createBot({
         flow: adapterFlow,
@@ -2093,158 +1855,29 @@ const main = async () => {
         database: adapterDB,
     });
 
-    adapterProvider.server.post('/v1/messages', handleCtx(async (bot, req, res) => {
-        const { number, message, urlMedia } = req.body;
-        await bot.sendMessage(number, message, { media: urlMedia ?? null });
-        return res.end('sended');
-    }));
-
-    adapterProvider.server.post('/v1/enviar-datos', handleCtx(async (bot, req, res) => {
-        let { wa_id, nombre, facultad, programa, dni, telefono } = req.body;
-        let targetNumber = wa_id || telefono;
-
-        if (!targetNumber || !dni) {
-            return res.writeHead(400).end(JSON.stringify({ error: 'Faltan wa_id/telefono o dni' }));
-        }
-
-        targetNumber = targetNumber.includes('@') ? targetNumber : `${targetNumber}@s.whatsapp.net`;
-
-        console.log(`[API v1] Petición recibida para ${nombre} (DNI: ${dni}).`);
-
-        // 1. Guardar o actualizar registro en Supabase
-        await supabase.from('students').upsert({
-            wa_id: targetNumber,
-            full_name: nombre,
-            document_id: dni
-        });
-
-        // 2. Validar límite diario (50)
-        const currentCounter = getLeadsCounter();
-        if (currentCounter.count >= 50) {
-            console.log(`[API v1] ❌ Límite diario de 50 alcanzado.`);
-            return res.writeHead(403).end('Limite diario alcanzado');
-        }
-
-        // 3. Incrementar contador y añadir a cola
-        incrementLeadsCounter(50);
-        apiQueue.push({ targetNumber, nombre, facultad, programa });
-        processApiQueue(adapterProvider);
-
-        return res.end('Lead encolado para procesamiento.');
-    }));
-
-    // NOTA: El endpoint /api/enviar-mensaje fue eliminado.
-    // El bot ya no recibe peticiones externas del formulario PHP para enviar mensajes automáticos.
-    // Los mensajes ahora son iniciados manualmente o vía /v1/enviar-datos con control de cola.
-
-    // =====================================================================
-    // ENDPOINTS DE AUTENTICACIÓN Y GESTIÓN DE CUENTAS (panel admin)
-    // =====================================================================
-    const sendJson = (res, status, obj) => {
-        res.statusCode = status;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify(obj));
-    };
-
-    // Login
-    adapterProvider.server.post('/admin/login', async (req, res) => {
-        try {
-            const { username, password } = req.body || {};
-            const ip = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || null;
-            const result = await login(username, password, { ip });
-            return sendJson(res, result.status || (result.ok ? 200 : 401), result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
+    // Rutas modulares de Mensajería Externa, Administración / RBAC y Handoff
+    registerMessagingRoutes(adapterProvider.server, { 
+        handleCtx, 
+        supabase, 
+        supabaseData,
+        getLeadsCounter, 
+        incrementLeadsCounter, 
+        apiQueue, 
+        processApiQueue, 
+        adapterProvider 
     });
-
-    // Logout
-    adapterProvider.server.post('/admin/logout', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            await logout(token);
-            return sendJson(res, 200, { ok: true });
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Sesión actual (para restaurar sesión al recargar)
-    adapterProvider.server.get('/admin/me', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const user = await verifyToken(token);
-            if (!user) return sendJson(res, 401, { ok: false, error: 'Sesión inválida' });
-            return sendJson(res, 200, { ok: true, user });
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Listar usuarios
-    adapterProvider.server.get('/admin/users', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const result = await listUsers(token);
-            return sendJson(res, result.status || 200, result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Crear usuario
-    adapterProvider.server.post('/admin/users', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const result = await createUser(token, req.body || {});
-            return sendJson(res, result.status || 200, result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Actualizar usuario (rol, activo, contraseña, nombre)
-    adapterProvider.server.put('/admin/users/:id', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const result = await updateUser(token, req.params.id, req.body || {});
-            return sendJson(res, result.status || 200, result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Eliminar usuario
-    adapterProvider.server.delete('/admin/users/:id', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const result = await deleteUser(token, req.params.id);
-            return sendJson(res, result.status || 200, result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Auditoría (qué hace cada usuario)
-    adapterProvider.server.get('/admin/audit', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const result = await getAudit(token, { limit: req.query?.limit });
-            return sendJson(res, result.status || 200, result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
-    });
-
-    // Métricas: mensajes respondidos por día y por agente
-    adapterProvider.server.get('/admin/agent-stats', async (req, res) => {
-        try {
-            const token = (req.headers['authorization'] || '').replace('Bearer ', '');
-            const result = await getAgentStats(token);
-            return sendJson(res, result.status || 200, result);
-        } catch (err) {
-            return sendJson(res, 500, { ok: false, error: err.message });
-        }
+    registerAuthRoutes(adapterProvider.server, { 
+        login, 
+        logout, 
+        verifyToken, 
+        listUsers, 
+        createUser, 
+        updateUser, 
+        deleteUser, 
+        getAudit, 
+        getAgentStats, 
+        writeAudit, 
+        supabase 
     });
 
     try {

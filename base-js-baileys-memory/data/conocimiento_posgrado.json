@@ -1,0 +1,60 @@
+[
+  {
+    "content": "El costo de inscripción por derecho de admisión en la Escuela de Posgrado de la UNAC es: Maestrías S/ 200 soles, Segundas Especialidades S/ 120 soles y Doctorados S/ 250 soles. Todos los pagos se realizan en el Banco Scotiabank a la cuenta 000-3747336 o CCI 009-100-000003747336-90 (para especialidades cuenta 000-1797042 y CCI 009-100-000001797042-97). Debe conservar su voucher de pago.",
+    "metadata": {
+      "tipo": "general",
+      "tema": "costos_inscripcion",
+      "banco": "Scotiabank"
+    }
+  },
+  {
+    "content": "Los costos por ciclo o semestre académico en la Escuela de Posgrado UNAC son: Maestrías S/ 2100 por semestre (duración 3 ciclos/semestres), Doctorados S/ 2100 por semestre (duración 6 ciclos/semestres) y Segundas Especialidades S/ 1400 por semestre (duración 2 semestres). El costo de matrícula por semestre es de S/ 100 para maestrías y doctorados, y S/ 200 para segundas especialidades.",
+    "metadata": {
+      "tipo": "general",
+      "tema": "costos_semestre",
+      "banco": "Scotiabank"
+    }
+  },
+  {
+    "content": "Los requisitos de inscripción para Maestrías en la UNAC son: 1. Ficha y Hoja de Vida virtual en el sistema de admisión. 2. Copia legible del DNI o Pasaporte. 3. Foto actual a color (opcional). 4. Copia del Grado Académico de Bachiller registrado en SUNEDU (o en trámite según normativa). Grados del extranjero deben contar con resolución de SUNEDU.",
+    "metadata": {
+      "tipo": "maestrias",
+      "tema": "requisitos"
+    }
+  },
+  {
+    "content": "Los requisitos de inscripción para Doctorados en la UNAC son: 1. Ficha y Hoja de Vida virtual. 2. Copia legible del DNI o Pasaporte. 3. Foto actual a color. 4. Copia del Grado Académico de Maestro, Constancia de egresado de Maestría o Certificado de Estudios de Maestría registrado en SUNEDU. 5. Proyecto de investigación o perfil preliminar.",
+    "metadata": {
+      "tipo": "doctorados",
+      "tema": "requisitos"
+    }
+  },
+  {
+    "content": "Los requisitos de inscripción para Segundas Especialidades en la UNAC son: 1. Ficha y Hoja de Vida virtual. 2. Copia legible del DNI o Pasaporte. 3. Foto actual a color. 4. Copia del Título Profesional universitario correspondiente a la especialidad.",
+    "metadata": {
+      "tipo": "especialidades",
+      "tema": "requisitos"
+    }
+  },
+  {
+    "content": "La modalidad de estudios en la Escuela de Posgrado de la Universidad Nacional del Callao (UNAC) es Presencial con Herramientas Tecnológicas (80% virtual y 20% presencial). Se asiste una vez al mes a clase híbrida presencial. El grado académico oficial emitido por la universidad sale como modalidad PRESENCIAL ante SUNEDU.",
+    "metadata": {
+      "tipo": "general",
+      "tema": "modalidad"
+    }
+  },
+  {
+    "content": "La plataforma GED (Gestor de Expedientes Digitales) de la Escuela de Posgrado UNAC permite subir la carpeta de postulante y verificar el estado de evaluación del expediente. Se ingresa mediante el enlace https://posgradounac.edu.pe/GED/login.php únicamente con el número de DNI una vez realizada la inscripción virtual.",
+    "metadata": {
+      "tipo": "general",
+      "tema": "ged_expediente"
+    }
+  },
+  {
+    "content": "El proceso de evaluación de admisión en la Escuela de Posgrado UNAC consta de dos etapas: 1. Evaluación de Expediente (revisión de CV y documentos cargados en la plataforma GED). 2. Entrevista Personal Virtual para conocer su perfil profesional y motivaciones académicas. No es un examen escrito eliminatorio ni tradicional.",
+    "metadata": {
+      "tipo": "general",
+      "tema": "examen_admision"
+    }
+  }
+]

@@ -31,6 +31,11 @@ export function ConversationList({
         return student?.full_name || waId.split('@')[0];
     };
 
+    const getStudentCondition = (waId: string, conv: any) => {
+        const student = students.find(s => s.wa_id === waId);
+        return student?.student_condition || conv?.metadata?.user_role || conv?.metadata?.user_condition || null;
+    };
+
     const supportCount = conversations.filter(c => c.status === 'human_active').length;
 
     // Filter + sort logic
@@ -202,6 +207,7 @@ export function ConversationList({
                         const isActive = activeId === conv.id;
                         const isHuman = conv.status === 'human_active';
                         const displayName = getStudentName(conv.wa_id);
+                        const condition = getStudentCondition(conv.wa_id, conv);
                         const lastMsg = lastMessages[conv.wa_id];
                         const unread = unreadCounts[conv.wa_id] || 0;
                         const wait = filterMode === 'queue' ? waitTime(conv.updated_at) : null;
@@ -284,6 +290,17 @@ export function ConversationList({
                                                         <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                                                         <span className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground">Bot Activo</span>
                                                     </div>
+                                                )}
+                                                {condition && (
+                                                    <span className={`text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded border ${
+                                                        condition.toLowerCase() === 'postulante'
+                                                            ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+                                                            : condition.toLowerCase() === 'estudiante'
+                                                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                                                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                                                    }`}>
+                                                        {condition}
+                                                    </span>
                                                 )}
                                             </div>
                                             {!conv.wa_id.includes('web') && displayName !== conv.wa_id.split('@')[0] && (

@@ -415,6 +415,49 @@ export const getAllProgramsGeneral = () => {
 }
 
 /**
+ * Genera la lista formateada y legible de programas por categoría (Maestrías, Especialidades, Doctorados)
+ */
+export const formatProgramsCatalogList = (category) => {
+    const catalog = getCatalog();
+    if (!catalog || !category) return "No se pudo cargar la lista de programas.";
+
+    const categoryLabel = category === 'maestrias' ? 'MAESTRÍAS' :
+        category === 'doctorados' ? 'DOCTORADOS' :
+            category === 'especialidades' ? 'SEGUNDAS ESPECIALIDADES' : category.toUpperCase();
+
+    const tipoInfo = getTipoProgramaInfo(category);
+    let msg = `🎓 *CATÁLOGO DE ${categoryLabel} - UNAC*\n\n`;
+
+    if (tipoInfo) {
+        if (tipoInfo.duracion) msg += `⏳ *Duración:* ${tipoInfo.duracion}\n`;
+        if (tipoInfo.costos) msg += `💰 *Inscripción:* ${tipoInfo.costos}\n`;
+        if (tipoInfo.costo_ciclo) msg += `💵 *Costo por ciclo:* ${tipoInfo.costo_ciclo}\n`;
+        msg += '\n';
+    }
+
+    let totalCount = 0;
+    for (const facultyId in catalog) {
+        const facultad = catalog[facultyId];
+        if (facultad[category] && Object.keys(facultad[category]).length > 0) {
+            msg += `🏛️ *${facultad.nombre}:*\n`;
+            const progs = Object.values(facultad[category]);
+            progs.forEach((p, idx) => {
+                totalCount++;
+                msg += `  ${idx + 1}. ${p.nombre}\n`;
+            });
+            msg += '\n';
+        }
+    }
+
+    if (totalCount === 0) {
+        return `Por el momento no contamos con programas registrados en ${categoryLabel}.`;
+    }
+
+    msg += `👉 *¿Te interesa alguno en específico?* Escribe su nombre para darte información detallada y su brochure oficial. 📄✨`;
+    return msg;
+};
+
+/**
  * Búsqueda ultra-flexible para el envío de brochures
  */
 export const findProgramFuzzy = (query) => {
@@ -422,6 +465,7 @@ export const findProgramFuzzy = (query) => {
     if (!catalog || !query) return null
 
     const queryNorm = normalizeText(query)
+    if (queryNorm.length < 4) return null;
 
     let allPrograms = []
     for (const facultyId in catalog) {
@@ -476,8 +520,17 @@ export const findFaculty = (query) => {
     if (queryNorm.length < 3) return null;
 
     for (const facultyId in catalog) {
-        if (normalizeText(catalog[facultyId].nombre).includes(queryNorm) || queryNorm.includes(normalizeText(catalog[facultyId].nombre))) {
-            return catalog[facultyId]
+        const facNorm = normalizeText(catalog[facultyId].nombre);
+        // Coincidencia exacta o frase completa contenida
+        if (facNorm === queryNorm || queryNorm.includes(facNorm)) {
+            return catalog[facultyId];
+        }
+        // Coincidencia de palabras clave significativas (ej. "sistemas", "quimica", "ambiental")
+        // Exigiendo longitud mínima >= 4 y coincidencia de palabra completa (\b)
+        const queryWords = queryNorm.split(/\s+/).filter(w => w.length >= 4);
+        const hasKeywordMatch = queryWords.some(w => new RegExp(`\\b${w}\\b`, 'i').test(facNorm));
+        if (hasKeywordMatch) {
+            return catalog[facultyId];
         }
     }
     return null

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { getBotUrl } from '@/lib/adminApi';
 
 interface KnowledgeChunk {
   id: string;
@@ -59,7 +60,7 @@ export default function KnowledgeManager() {
     toastTimeout.current = setTimeout(() => setToast(null), 4000);
   };
 
-  const botUrl = process.env.NEXT_PUBLIC_BOT_URL || 'http://localhost:3000';
+  const botUrl = getBotUrl();
 
   const fetchKnowledge = async () => {
     try {
