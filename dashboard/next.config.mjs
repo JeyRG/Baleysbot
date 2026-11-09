@@ -3,16 +3,6 @@ const nextConfig = {
   basePath: '/chatbot/dashboard',
   output: 'standalone',
   poweredByHeader: false,
-  async redirects() {
-    return [
-      {
-        source: '/',
-        destination: '/chatbot/dashboard',
-        basePath: false,
-        permanent: false,
-      },
-    ];
-  },
   async headers() {
     return [
       {
