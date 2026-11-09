@@ -2,8 +2,15 @@
 // El token de sesión se guarda en cookies y se envía como Bearer.
 
 export function getBotUrl(): string {
-    if (typeof window !== 'undefined' && window.location?.hostname) {
-        return `http://${window.location.hostname}:3000`;
+    if (typeof window !== 'undefined') {
+        // En producción o detrás del proxy HTTPS en el dominio oficial
+        if (window.location.protocol === 'https:' || window.location.hostname === 'posgradounac.edu.pe') {
+            return `${window.location.origin}/chatbot/api`;
+        }
+        // En acceso directo por IP/puerto (ej. http://200.58.100.71:3004)
+        if (window.location.hostname) {
+            return `http://${window.location.hostname}:3000`;
+        }
     }
     return process.env.NEXT_PUBLIC_BOT_URL || 'http://localhost:3000';
 }
