@@ -17,8 +17,8 @@ const nextConfig = {
             value: 'max-age=63072000; includeSubDomains; preload'
           },
           {
-            key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'self' http://localhost* http://127.0.0.1* https://posgrado.unac.edu.pe"
           },
           {
             key: 'X-Content-Type-Options',

@@ -1593,6 +1593,39 @@ const main = async () => {
         const lastQrPath = path.join(process.cwd(), 'last_qr.txt');
         if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
         if (fs.existsSync(lastQrPath)) fs.unlinkSync(lastQrPath);
+
+        // Configurar rechazo automático educado de llamadas en WhatsApp
+        const sock = adapterProvider.getInstance?.() || adapterProvider.vendor;
+        if (sock?.ev) {
+            console.log('[Bot] 🛡️ Listener de llamadas entrantes activado.');
+            sock.ev.on('call', async (callEvents) => {
+                for (const call of callEvents) {
+                    if (call.status === 'offer') {
+                        console.log(`[Baileys Call] 📞 Llamada entrante de ${call.from} (ID: ${call.id}). Rechazando educadamente...`);
+                        try {
+                            await sock.rejectCall(call.id, call.from);
+                        } catch (e) {
+                            console.warn('[Baileys Call] Error rechazando llamada:', e.message);
+                        }
+
+                        // Enviar mensaje institucional explicativo
+                        try {
+                            const politeMessage = '📞 *Aviso Automático - Escuela de Posgrado UNAC*\n\nEstimado(a) postulante, esta línea opera exclusivamente como central digital de atención por mensajería. No es posible responder llamadas de voz directamente.\n\nPor favor, déjanos tu consulta detallada por *mensaje de texto o nota de voz* aquí mismo y un asesor te responderá a la brevedad.\n\n¡Muchas gracias por tu comprensión!';
+                            await adapterProvider.sendMessage(call.from, politeMessage, {});
+
+                            const cleanFrom = call.from.split('@')[0];
+                            await supabase.from('messages').insert({
+                                wa_id: cleanFrom,
+                                text: '📞 [Llamada entrante rechazada automáticamente con mensaje institucional]',
+                                sender_type: 'bot'
+                            });
+                        } catch (sendErr) {
+                            console.warn('[Baileys Call] Error enviando mensaje post-llamada:', sendErr.message);
+                        }
+                    }
+                }
+            });
+        }
     });
 
     adapterProvider.on('auth_failure', (error) => {
@@ -1806,6 +1839,14 @@ const main = async () => {
     const channel = supabase.channel('dashboard-send')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'sender_type=eq.dashboard' }, async (payload) => {
             const { id: msgId, wa_id, text, media_url, sent_by, sent_by_name } = payload.new;
+            if (!wa_id) return;
+
+            // Omnicanalidad: Si el mensaje pertenece al canal web, ignorar en Baileys
+            if (wa_id.startsWith('web_')) {
+                console.log(`[Dashboard Router] 🌐 Mensaje detectado para canal Web (${wa_id}). Omitiendo despacho en WhatsApp Baileys.`);
+                return;
+            }
+
             console.log(`[Dashboard] 📩 Recibida solicitud de envío para ${wa_id} (Operador: ${sent_by_name || 'Desconocido'})`);
 
             // Asegurar formato de número correcto
@@ -1819,7 +1860,29 @@ const main = async () => {
 
             try {
                 if (media_url) {
-                    await adapterProvider.sendMessage(target, text || "Archivo adjunto", { media: media_url });
+                    const isAudio = /\.(ogg|opus|mp3|wav|m4a|aac|webm)(\?.*)?$/i.test(media_url) || (payload.new.media_type === 'audio' || payload.new.media_type === 'voice_note');
+                    const isDoc = /\.(pdf|docx?|xlsx?|pptx?|txt)(\?.*)?$/i.test(media_url) || payload.new.media_type === 'document';
+                    const sock = adapterProvider.getInstance?.() || adapterProvider.vendor;
+
+                    if (isAudio && sock?.sendMessage) {
+                        console.log(`[Dashboard] 🎙️ Despachando nota de voz PTT a ${target}`);
+                        await sock.sendMessage(target, {
+                            audio: { url: media_url },
+                            mimetype: 'audio/ogg; codecs=opus',
+                            ptt: true
+                        });
+                    } else if (isDoc && sock?.sendMessage) {
+                        const filename = payload.new.metadata?.filename || 'Documento_Posgrado_UNAC.pdf';
+                        console.log(`[Dashboard] 📄 Despachando documento PDF/archivo a ${target}`);
+                        await sock.sendMessage(target, {
+                            document: { url: media_url },
+                            mimetype: payload.new.metadata?.mime || 'application/pdf',
+                            fileName: filename,
+                            caption: text || ''
+                        });
+                    } else {
+                        await adapterProvider.sendMessage(target, text || "Archivo adjunto", { media: media_url });
+                    }
                 } else {
                     await adapterProvider.sendMessage(target, text, {});
                 }

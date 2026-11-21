@@ -40,7 +40,7 @@ export function MessageList({ conversation, students }: MessageListProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const student = students.find(s => s.wa_id === conversation.wa_id);
-    const displayName = student?.full_name || (conversation.wa_id.includes('web') ? 'Visitante Web' : conversation.wa_id.split('@')[0]);
+    const displayName = conversation?.metadata?.name || student?.full_name || (conversation.wa_id.includes('web') ? 'Visitante Web' : conversation.wa_id.split('@')[0]);
     const phoneNumber = conversation.wa_id.split('@')[0];
 
     // Fetch initial messages (latest PAGE_SIZE)
@@ -343,11 +343,27 @@ export function MessageList({ conversation, students }: MessageListProps) {
                                 <path d="m6 9 6 6 6-6" />
                             </svg>
                         </button>
-                        <div className="flex items-center gap-1.5">
-                            <span className={`w-2 h-2 rounded-full ${isHumanMode ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                {isHumanMode ? 'Modo Manual' : 'IA Respondiendo'}
-                            </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${conversation.wa_id.includes('web') ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'}`}>
+                                {conversation.wa_id.includes('web') ? (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+                                        Página Web
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                        WhatsApp
+                                    </>
+                                )}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">•</span>
+                            <div className="flex items-center gap-1">
+                                <span className={`w-1.5 h-1.5 rounded-full ${isHumanMode ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`} />
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    {isHumanMode ? 'Modo Manual' : 'IA Respondiendo'}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -462,6 +478,17 @@ export function MessageList({ conversation, students }: MessageListProps) {
                                                     className="w-full h-auto max-h-80 object-cover hover:scale-105 transition-transform duration-500 cursor-zoom-in"
                                                     onClick={() => window.open(msg.media_url, '_blank')}
                                                 />
+                                            ) : msg.media_url.match(/\.(ogg|opus|mp3|wav|m4a|webm)/i) || msg.text?.includes('Nota de voz') ? (
+                                                <div className="p-3">
+                                                    <div className="flex items-center gap-1.5 mb-1.5 text-xs font-bold opacity-80">
+                                                        <span>🎙️ Nota de voz / Audio</span>
+                                                    </div>
+                                                    <audio
+                                                        controls
+                                                        src={msg.media_url}
+                                                        className="w-full h-10 rounded-lg outline-none"
+                                                    />
+                                                </div>
                                             ) : (
                                                 <a
                                                     href={msg.media_url}
@@ -574,7 +601,7 @@ export function MessageList({ conversation, students }: MessageListProps) {
                                 ref={fileInputRef}
                                 onChange={handleFileUpload}
                                 className="hidden"
-                                accept="image/*,application/pdf"
+                                accept="image/*,application/pdf,audio/*"
                             />
                             <button
                                 type="button"

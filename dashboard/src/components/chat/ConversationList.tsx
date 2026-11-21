@@ -24,8 +24,11 @@ export function ConversationList({
     onSelect,
 }: ConversationListProps) {
     const [searchQuery, setSearchQuery] = useState('');
+    const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'web'>('all');
 
-    const getStudentName = (waId: string) => {
+    const getStudentName = (waId: string, conv?: any) => {
+        if (conv?.metadata?.name) return conv.metadata.name;
+        if (conv?.metadata?.full_name) return conv.metadata.full_name;
         if (waId.includes('web')) return 'Visitante Web';
         const student = students.find(s => s.wa_id === waId);
         return student?.full_name || waId.split('@')[0];
@@ -37,10 +40,19 @@ export function ConversationList({
     };
 
     const supportCount = conversations.filter(c => c.status === 'human_active').length;
+    const waCount = useMemo(() => conversations.filter(c => !c.wa_id.includes('web')).length, [conversations]);
+    const webCount = useMemo(() => conversations.filter(c => c.wa_id.includes('web')).length, [conversations]);
 
     // Filter + sort logic
     const filteredConversations = useMemo(() => {
         let filtered = conversations;
+
+        // Apply channel filter
+        if (channelFilter === 'whatsapp') {
+            filtered = filtered.filter(c => !c.wa_id.includes('web'));
+        } else if (channelFilter === 'web') {
+            filtered = filtered.filter(c => c.wa_id.includes('web'));
+        }
 
         // Apply status filter
         if (filterMode === 'support' || filterMode === 'queue') {
@@ -51,7 +63,7 @@ export function ConversationList({
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             filtered = filtered.filter(conv => {
-                const name = getStudentName(conv.wa_id).toLowerCase();
+                const name = getStudentName(conv.wa_id, conv).toLowerCase();
                 const phone = conv.wa_id.split('@')[0];
                 return name.includes(q) || phone.includes(q);
             });
@@ -170,6 +182,33 @@ export function ConversationList({
                 </button>
             </div>
 
+            {/* Channel Quick Selector */}
+            <div className="flex gap-1.5 px-4 pt-1 pb-2">
+                <button
+                    onClick={() => setChannelFilter('all')}
+                    className={`flex-1 py-1 px-2 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border ${channelFilter === 'all' ? 'bg-primary text-primary-foreground border-primary shadow-xs' : 'bg-background/80 text-muted-foreground border-border/60 hover:text-foreground hover:bg-secondary/60'}`}
+                >
+                    Todos
+                    <span className="text-[9px] opacity-75 font-normal">({conversations.length})</span>
+                </button>
+                <button
+                    onClick={() => setChannelFilter('whatsapp')}
+                    className={`flex-1 py-1 px-2 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border ${channelFilter === 'whatsapp' ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs' : 'bg-background/80 text-muted-foreground border-border/60 hover:text-emerald-600 hover:bg-emerald-500/10'}`}
+                >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    WhatsApp
+                    <span className="text-[9px] opacity-75 font-normal">({waCount})</span>
+                </button>
+                <button
+                    onClick={() => setChannelFilter('web')}
+                    className={`flex-1 py-1 px-2 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border ${channelFilter === 'web' ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-background/80 text-muted-foreground border-border/60 hover:text-blue-600 hover:bg-blue-500/10'}`}
+                >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    Web
+                    <span className="text-[9px] opacity-75 font-normal">({webCount})</span>
+                </button>
+            </div>
+
             {/* Queue header info */}
             {filterMode === 'queue' && filteredConversations.length > 0 && (
                 <div className="mx-4 mb-2 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
@@ -206,7 +245,7 @@ export function ConversationList({
                     filteredConversations.map((conv, index) => {
                         const isActive = activeId === conv.id;
                         const isHuman = conv.status === 'human_active';
-                        const displayName = getStudentName(conv.wa_id);
+                        const displayName = getStudentName(conv.wa_id, conv);
                         const condition = getStudentCondition(conv.wa_id, conv);
                         const lastMsg = lastMessages[conv.wa_id];
                         const unread = unreadCounts[conv.wa_id] || 0;
