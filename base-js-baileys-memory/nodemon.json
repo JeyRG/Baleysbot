@@ -1,9 +1,19 @@
 {
-  "watch": ["src"],
-  "ext": "js",
+  "watch": ["src/"],
+  "ext": "js,json",
   "ignore": [
+    "src/data/**",
+    "bot_sessions/**",
+    "logs/**",
+    "*.log",
+    "token_usage.json",
+    "user_data.json",
+    "leads_counter.json",
+    "bot_settings.backup.json",
+    "last_payload.json",
+    "bot.qr.png",
     "**/*.test.js",
     "**/*.spec.js"
-],
-  "delay": "3"
+  ],
+  "delay": 1500
 }

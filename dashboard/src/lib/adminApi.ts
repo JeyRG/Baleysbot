@@ -1,21 +1,17 @@
-// Cliente para hablar con el backend del bot (autenticación y admin).
+// Cliente para hablar con el backend del bot (autenticación, configuración y admin).
 // El token de sesión se guarda en cookies y se envía como Bearer.
 
 export function getBotUrl(): string {
     if (typeof window !== 'undefined') {
-        // En producción o detrás del proxy HTTPS en el dominio oficial
         if (window.location.protocol === 'https:' || window.location.hostname === 'posgradounac.edu.pe') {
             return `${window.location.origin}/chatbot/api`;
         }
-        // En acceso directo por IP/puerto (ej. http://200.58.100.71:3004)
         if (window.location.hostname) {
             return `http://${window.location.hostname}:3000`;
         }
     }
     return process.env.NEXT_PUBLIC_BOT_URL || 'http://localhost:3000';
 }
-
-const BOT_URL = getBotUrl();
 
 export interface AdminUser {
     id: string;
@@ -27,7 +23,74 @@ export interface AdminUser {
     created_at: string;
 }
 
-function getToken(): string | null {
+export interface BotSettings {
+    admision: {
+        proceso_actual: string;
+        cierre_inscripciones: string;
+        fecha_examen: string;
+        fecha_entrevistas: string;
+        inicio_clases: string;
+        nota_evaluacion: string;
+    };
+    pagos: {
+        banco: string;
+        cuenta_general: string;
+        cci_general: string;
+        cuenta_especialidad: string;
+        cci_especialidad: string;
+        inscripcion_maestria: string;
+        matricula_maestria: string;
+        semestre_maestria: string;
+        duracion_maestria: string;
+        inscripcion_doctorado: string;
+        matricula_doctorado: string;
+        semestre_doctorado: string;
+        duracion_doctorado: string;
+        inscripcion_especialidad: string;
+        matricula_especialidad: string;
+        semestre_especialidad: string;
+        duracion_especialidad: string;
+    };
+    modalidad_atencion: {
+        modalidad_titulo: string;
+        modalidad_resumen: string;
+        horario_ged: string;
+        telefono_soporte: string;
+        limite_leads_diario: number;
+    };
+    enlaces: {
+        whatsapp_admision_general: string;
+        portal_inscripcion: string;
+        portal_ged: string;
+        portal_ged_login: string;
+        portal_requisitos: string;
+        portal_sga: string;
+    };
+}
+
+export interface BotSettingsResponse {
+    ok: boolean;
+    settings: BotSettings;
+    defaults?: BotSettings;
+    meta?: {
+        updated_at: string | null;
+        updated_by_name: string | null;
+        source: string;
+    };
+    catalog_summary?: {
+        faculties: number;
+        maestrias: number;
+        doctorados: number;
+        especialidades: number;
+        total_programs: number;
+        with_brochure: number;
+    };
+    persisted_in_db?: boolean;
+    warning?: string | null;
+    error?: string;
+}
+
+export function getToken(): string | null {
     if (typeof document === 'undefined') return null;
     const match = document.cookie.match(/(?:^|;\s*)admin_token=([^;]+)/);
     return match ? decodeURIComponent(match[1]) : null;
@@ -57,17 +120,32 @@ export function getUser(): AdminUser | null {
     }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+/**
+ * Wrapper de fetch que inyecta automáticamente Authorization: Bearer <admin_token>
+ * para llamadas hacia /bot/* o /admin/*.
+ */
+export async function authFetch(urlOrPath: string, options: RequestInit = {}): Promise<Response> {
     const token = getToken();
-    const botUrl = getBotUrl();
-    const res = await fetch(`${botUrl}${path}`, {
+    const targetUrl = /^https?:\/\//i.test(urlOrPath)
+        ? urlOrPath
+        : `${getBotUrl()}${urlOrPath.startsWith('/') ? urlOrPath : `/${urlOrPath}`}`;
+
+    const headers = new Headers(options.headers || {});
+    if (token && !headers.has('Authorization')) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+    if (options.body && typeof options.body === 'string' && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    return fetch(targetUrl, {
         ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            ...(options.headers || {}),
-        },
+        headers,
     });
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const res = await authFetch(path, options);
     let data: any = null;
     try { data = await res.json(); } catch { /* respuesta vacía */ }
     if (!res.ok && data?.error) {
@@ -115,4 +193,18 @@ export const adminApi = {
             '/admin/conversations/handoff',
             { method: 'POST', body: JSON.stringify({ wa_id: waId, status }) }
         ),
+
+    getBotSettings: () =>
+        request<BotSettingsResponse>('/bot/settings'),
+
+    updateBotSettings: (settings: BotSettings) =>
+        request<BotSettingsResponse>('/bot/settings', {
+            method: 'PUT',
+            body: JSON.stringify({ settings })
+        }),
+
+    syncCatalog: () =>
+        request<{ ok: boolean; message?: string; error?: string }>('/bot/settings/sync-catalog', {
+            method: 'POST'
+        }),
 };

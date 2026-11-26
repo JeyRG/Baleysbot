@@ -12,8 +12,16 @@ const ACTION_LABELS: Record<string, { label: string; color: string }> = {
     delete_user: { label: 'Eliminó usuario', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
     send_message: { label: 'Envió mensaje', color: 'bg-primary/10 text-primary border-primary/20' },
     resolve_query: { label: 'Resolvió consulta', color: 'bg-teal-500/10 text-teal-500 border-teal-500/20' },
-    handoff_pause_bot: { label: 'Pausó bot (Humano)', color: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20' },
-    handoff_resume_bot: { label: 'Reactivó bot (IA)', color: 'bg-purple-500/10 text-purple-500 border-purple-500/20' },
+    handoff_pause_bot: { label: 'Pausó bot (Humano)', color: 'bg-sky-500/10 text-sky-500 border-sky-500/20' },
+    handoff_resume_bot: { label: 'Reactivó bot (IA)', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
+    update_bot_settings: { label: 'Editó datos del Bot', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
+    sync_bot_catalog: { label: 'Sincronizó catálogo', color: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20' },
+    approve_interaction: { label: 'Aprobó respuesta IA', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' },
+    correct_interaction: { label: 'Corrigió respuesta IA', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
+    create_knowledge: { label: 'Añadió conocimiento', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20' },
+    edit_knowledge: { label: 'Editó conocimiento', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20' },
+    delete_knowledge: { label: 'Eliminó conocimiento', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
+    clear_semantic_cache: { label: 'Vació caché semántico', color: 'bg-rose-500/10 text-rose-500 border-rose-500/20' },
 };
 
 export default function AuditLog() {

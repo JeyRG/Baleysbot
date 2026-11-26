@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { getBotUrl } from '@/lib/adminApi';
+import { getBotUrl, authFetch } from '@/lib/adminApi';
 
 interface KnowledgeChunk {
   id: string;
@@ -64,7 +64,7 @@ export default function KnowledgeManager() {
 
   const fetchKnowledge = async () => {
     try {
-      const res = await fetch(`${botUrl}/bot/knowledge`);
+      const res = await authFetch(`${botUrl}/bot/knowledge`);
       if (!res.ok) throw new Error('Error al cargar la base de conocimientos');
       setChunks(await res.json());
     } catch (err: any) {
@@ -74,7 +74,7 @@ export default function KnowledgeManager() {
 
   const fetchUnresolved = async () => {
     try {
-      const res = await fetch(`${botUrl}/bot/unresolved`);
+      const res = await authFetch(`${botUrl}/bot/unresolved`);
       if (!res.ok) throw new Error('Error al cargar dudas pendientes');
       setUnresolved(await res.json());
     } catch (err: any) {
@@ -84,7 +84,7 @@ export default function KnowledgeManager() {
 
   const fetchCache = async () => {
     try {
-      const res = await fetch(`${botUrl}/bot/cache`);
+      const res = await authFetch(`${botUrl}/bot/cache`);
       if (!res.ok) throw new Error('Error al cargar memoria semántica');
       setCache(await res.json());
     } catch (err: any) {
@@ -94,7 +94,7 @@ export default function KnowledgeManager() {
 
   const fetchInteractions = async () => {
     try {
-      const res = await fetch(`${botUrl}/bot/responses-review?reviewed=false&limit=50`);
+      const res = await authFetch(`${botUrl}/bot/responses-review?reviewed=false&limit=50`);
       if (res.ok) setInteractions(await res.json());
     } catch (err: any) {
       console.error(err);
@@ -197,7 +197,7 @@ export default function KnowledgeManager() {
       }
       if (resolvingId) body.id = resolvingId;
 
-      const res = await fetch(url, {
+      const res = await authFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
@@ -239,7 +239,7 @@ export default function KnowledgeManager() {
         ? `${botUrl}/bot/cache/${id}`
         : `${botUrl}/bot/knowledge/${id}`;
 
-      const res = await fetch(url, { method: 'DELETE' });
+      const res = await authFetch(url, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al eliminar');
 
       if (activeTab === 'cache') await fetchCache();
@@ -255,7 +255,7 @@ export default function KnowledgeManager() {
     if (!confirm('¿Estás seguro de que quieres vaciar TODA la memoria aprendida? Esto no se puede deshacer.')) return;
 
     try {
-      const res = await fetch(`${botUrl}/bot/cache/all`, { method: 'DELETE' });
+      const res = await authFetch(`${botUrl}/bot/cache/all`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al vaciar la memoria');
       await fetchCache();
       showToast('Memoria limpiada exitosamente', 'success');
@@ -293,7 +293,7 @@ export default function KnowledgeManager() {
 
   const approveInteraction = async (id: string) => {
     try {
-      const res = await fetch(`${botUrl}/bot/responses-review/${id}/approve`, { method: 'POST' });
+      const res = await authFetch(`${botUrl}/bot/responses-review/${id}/approve`, { method: 'POST' });
       if (res.ok) {
         showToast('Respuesta aprendida exitosamente', 'success');
         fetchInteractions();
@@ -349,7 +349,7 @@ export default function KnowledgeManager() {
 
       for (const fragment of fragments) {
         try {
-          const res = await fetch(`${botUrl}/bot/knowledge`, {
+          const res = await authFetch(`${botUrl}/bot/knowledge`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: fragment, metadata: { category: selectedCategory || 'general', imported: true } })
@@ -437,10 +437,10 @@ export default function KnowledgeManager() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Base de Conocimiento', value: resolvedCount, icon: '🧠', gradient: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20' },
-          { label: 'Dudas Pendientes', value: pendingCount, icon: '❓', gradient: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-500/20' },
+          { label: 'Base de Conocimiento', value: resolvedCount, icon: '🧠', gradient: 'from-blue-600 to-cyan-600', shadow: 'shadow-blue-500/20' },
+          { label: 'Dudas Pendientes', value: pendingCount, icon: '❓', gradient: 'from-rose-500 to-red-600', shadow: 'shadow-rose-500/20' },
           { label: 'Revisión Pendiente', value: reviewCount, icon: '👀', gradient: 'from-amber-500 to-orange-600', shadow: 'shadow-amber-500/20' },
-          { label: 'Memoria Aprendida', value: cacheCount, icon: '💾', gradient: 'from-violet-500 to-purple-600', shadow: 'shadow-violet-500/20' },
+          { label: 'Memoria Validada', value: cacheCount, icon: '💾', gradient: 'from-emerald-600 to-teal-600', shadow: 'shadow-emerald-500/20' },
         ].map((kpi, idx) => (
           <div key={idx} className="glass-panel rounded-2xl p-4 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 group">
             <div className="flex items-center gap-3">

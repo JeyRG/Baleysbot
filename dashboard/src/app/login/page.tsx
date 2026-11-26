@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi, setSession } from '@/lib/adminApi';
+import { ShieldCheck, MessageSquare, Users, Lock, User, AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -13,6 +14,11 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim() || !password) {
+      setError('Por favor ingresa usuario y contraseña');
+      return;
+    }
+
     setError('');
     setIsLoading(true);
     try {
@@ -21,121 +27,185 @@ export default function LoginPage() {
         setSession(res.token, res.user);
         router.push('/');
       } else {
-        setError(res.error || 'No se pudo iniciar sesión');
+        setError(res.error || 'Credenciales incorrectas o usuario no autorizado');
         setIsLoading(false);
       }
     } catch (err: any) {
-      setError(err?.message || 'Error de conexión con el servidor');
+      setError(err?.message || 'Error de conexión con el servidor de autenticación');
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center font-sans overflow-hidden">
-      {/* Background Image with Dark Overlay */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat transition-transform duration-[20s] scale-110 animate-pulse-slow" 
-        style={{ backgroundImage: "url('/bg-login.png')" }}
-      />
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px]" />
-
-      <div className="container mx-auto px-6 z-10 flex flex-col md:flex-row items-center justify-between gap-12 lg:gap-24">
+    <div className="min-h-screen w-full grid lg:grid-cols-2 bg-background font-sans">
+      {/* Left Column: Technical Enterprise Brand Panel (Desktop) */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-zinc-950 text-zinc-100 border-r border-zinc-800/80 overflow-hidden">
+        {/* Subtle engineering grid background */}
+        <div className="absolute inset-0 grid-subtle-pattern opacity-40 pointer-events-none" />
         
-        {/* Left Side: Brand/Logo */}
-        <div className="flex-1 text-center md:text-left space-y-4 animate-in fade-in slide-in-from-left-8 duration-1000">
-            <h1 className="text-7xl lg:text-9xl font-black text-white tracking-tighter italic font-outfit drop-shadow-2xl">
-                UNAC <br />
-                <span className="text-4xl lg:text-5xl not-italic font-medium opacity-80 tracking-normal">Posgrado</span>
-            </h1>
-            <p className="text-white/60 text-lg font-medium max-w-md">
-                Excelencia académica con rostro humano. <br />
-                Gestiona tus leads y admisiones desde un solo lugar.
-            </p>
+        {/* Subtle corner light accent, not overwhelming */}
+        <div className="absolute -top-40 -left-40 w-80 h-80 bg-zinc-800/30 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Top: Institution & Identity */}
+        <div className="relative z-10 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-100 shadow-sm">
+            <ShieldCheck className="w-5 h-5 text-zinc-200" />
+          </div>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-base tracking-tight text-white">UNAC Posgrado</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">v2.4</span>
+            </div>
+            <span className="text-xs text-zinc-400 font-normal">Consola de Operaciones & Admisiones</span>
+          </div>
         </div>
 
-        {/* Right Side: Glassmorphism Login Card */}
-        <div className="w-full max-w-[480px] animate-in fade-in slide-in-from-right-8 duration-1000 delay-150">
-            <div className="relative bg-white/10 backdrop-blur-2xl border border-white/20 rounded-[2.5rem] p-8 lg:p-12 shadow-2xl overflow-hidden group">
-                {/* Header within card */}
-                <div className="flex justify-between items-center mb-10">
-                    <h2 className="text-3xl font-bold text-white tracking-tight">Log In</h2>
-                    <div className="flex gap-3 text-[10px] font-bold text-white/50 uppercase tracking-widest">
-                        <span className="text-white">Log In</span>
-                        <span>/</span>
-                        <span className="hover:text-white cursor-pointer transition-colors">Sign Up</span>
-                    </div>
-                </div>
+        {/* Middle: Key Capabilities / Architecture Notes */}
+        <div className="relative z-10 my-auto py-12 space-y-8 max-w-lg">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-white leading-tight">
+              Plataforma de gestión de leads y atención estudiantil.
+            </h1>
+            <p className="text-zinc-400 text-sm leading-relaxed">
+              Sistema centralizado para supervisión de conversaciones WhatsApp, derivación a soporte humano y gestión de admisiones académicas en tiempo real.
+            </p>
+          </div>
 
-                <form onSubmit={handleLogin} className="space-y-8">
-                    <div className="space-y-6">
-                        {/* Usuario */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-white/80 ml-1">Usuario</label>
-                            <input
-                                type="text"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                placeholder="Tu usuario"
-                                autoComplete="username"
-                                className="w-full px-6 py-4 bg-white/10 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium backdrop-blur-md"
-                                required
-                            />
-                        </div>
-                        {/* Contraseña */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-white/80 ml-1">Contraseña</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Ingresa tu contraseña"
-                                autoComplete="current-password"
-                                className="w-full px-6 py-4 bg-white/10 border border-white/10 rounded-xl text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium backdrop-blur-md"
-                                required
-                            />
-                        </div>
-                        
-                        {error && (
-                            <div className="bg-rose-500/20 border border-rose-500/30 py-3 rounded-xl px-4 flex items-center gap-3">
-                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                                <p className="text-rose-200 text-xs font-bold">{error}</p>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex justify-end pt-2">
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="px-10 py-3 bg-white text-slate-900 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-slate-100 hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-50"
-                        >
-                            {isLoading ? '...' : 'Log In'}
-                        </button>
-                    </div>
-
-                    {/* Social/Bottom Divider */}
-                    <div className="pt-8 space-y-8">
-                        <div className="relative flex items-center justify-center">
-                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-                            <span className="relative px-4 text-[10px] font-black text-white/30 uppercase tracking-[0.2em] bg-transparent">OR</span>
-                        </div>
-
-                        <div className="flex justify-center gap-6">
-                            {[1, 2, 3].map((i) => (
-                                <div key={i} className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:bg-white/10 hover:text-white transition-all cursor-pointer">
-                                    {i === 1 && <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>}
-                                    {i === 2 && <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>}
-                                    {i === 3 && <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>}
-                                </div>
-                            ))}
-                        </div>
-
-                        <p className="text-center text-[10px] font-bold text-white/30 uppercase tracking-widest">
-                            Don't have an account? <span className="text-white cursor-pointer hover:underline">Sign up</span>
-                        </p>
-                    </div>
-                </form>
+          <div className="grid gap-3 pt-2">
+            <div className="flex items-start gap-3 p-3.5 rounded-lg border border-zinc-800/80 bg-zinc-900/50">
+              <MessageSquare className="w-4 h-4 text-zinc-300 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-zinc-200">Atención Multicanal Activa</p>
+                <p className="text-[11px] text-zinc-400">Canal WhatsApp Oficial y Widget Web sincronizados bajo un único inbox.</p>
+              </div>
             </div>
+
+            <div className="flex items-start gap-3 p-3.5 rounded-lg border border-zinc-800/80 bg-zinc-900/50">
+              <Users className="w-4 h-4 text-zinc-300 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-medium text-zinc-200">Intervención Humana Inmediata</p>
+                <p className="text-[11px] text-zinc-400">Detección de solicitudes prioritarias con alertas sonoras y de escritorio.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom: Institutional Note */}
+        <div className="relative z-10 pt-6 border-t border-zinc-800/80 text-xs text-zinc-400 flex items-center justify-between">
+          <span>Universidad Nacional del Callao</span>
+          <span className="font-mono text-[11px] text-zinc-400">Ambiente Seguro TLS 1.3</span>
+        </div>
+      </div>
+
+      {/* Right Column: Clean, Focused Login Form */}
+      <div className="flex items-center justify-center p-6 sm:p-12 lg:p-16">
+        <div className="w-full max-w-sm space-y-6">
+          {/* Mobile institution header */}
+          <div className="lg:hidden flex items-center gap-2.5 pb-2">
+            <div className="w-8 h-8 rounded-md bg-foreground text-background flex items-center justify-center font-bold text-xs">
+              UN
+            </div>
+            <div>
+              <p className="font-semibold text-sm leading-none text-foreground">UNAC Posgrado</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Consola de Operaciones</p>
+            </div>
+          </div>
+
+          {/* Form Header */}
+          <div className="space-y-1.5">
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+              Iniciar Sesión
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Ingresa tus credenciales para acceder al panel de control.
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-3.5">
+              {/* Usuario */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                  <span>Usuario</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                    <User className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="usuario.admin"
+                    autoComplete="username"
+                    disabled={isLoading}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring transition-colors disabled:opacity-50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Contraseña */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                  <span>Contraseña</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                    <Lock className="h-4 w-4" />
+                  </div>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    autoComplete="current-password"
+                    disabled={isLoading}
+                    className="w-full pl-9 pr-3 py-2 text-sm bg-background border border-input rounded-md text-foreground placeholder:text-muted-foreground/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:border-ring transition-colors disabled:opacity-50 font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Error Alert */}
+              {error && (
+                <div 
+                  role="alert" 
+                  className="p-3 rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-start gap-2.5 animate-in fade-in-50 duration-200"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-destructive" />
+                  <span className="font-medium">{error}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full h-10 px-4 py-2 mt-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm cursor-pointer"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Validando credenciales...</span>
+                </>
+              ) : (
+                <>
+                  <span>Ingresar a la Consola</span>
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Institutional Advisory */}
+          <div className="pt-4 border-t border-border">
+            <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+              Acceso restringido únicamente a operadores y personal autorizado de la Escuela de Posgrado UNAC.
+            </p>
+          </div>
         </div>
       </div>
     </div>

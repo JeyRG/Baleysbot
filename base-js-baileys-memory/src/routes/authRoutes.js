@@ -1,3 +1,5 @@
+import { setConversationStatusCache } from '../services/flowGuardService.js';
+
 /**
  * Rutas de Autenticación, RBAC, Auditoría y Handoff
  */
@@ -148,6 +150,8 @@ export function registerAuthRoutes(server, {
             if (updErr) {
                 return sendJson(res, 500, { ok: false, error: updErr.message });
             }
+
+            setConversationStatusCache(cleanWa, status);
 
             await writeAudit({
                 actorId: user.id,

@@ -120,6 +120,14 @@ export function MessageList({ conversation, students }: MessageListProps) {
                 setIsTyping(false);
             })
             .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'messages',
+                filter: `wa_id=eq.${conversation.wa_id}`
+            }, (payload) => {
+                setMessages(prev => prev.map(m => m.id === payload.new.id ? { ...m, ...payload.new } : m));
+            })
+            .on('postgres_changes', {
                 event: 'DELETE',
                 schema: 'public',
                 table: 'messages'
@@ -510,6 +518,14 @@ export function MessageList({ conversation, students }: MessageListProps) {
                                         </div>
                                     )}
                                     {msg.text && <p className="text-sm leading-relaxed font-medium">{msg.text}</p>}
+                                    {msg.delivery_status === 'failed' && (
+                                        <div
+                                            role="alert"
+                                            className="mt-2 px-2.5 py-1.5 rounded-lg bg-rose-950/70 border border-rose-400/40 text-rose-100 text-[11px] font-semibold"
+                                        >
+                                            ⚠️ No entregado en WhatsApp{msg.delivery_error ? `: ${msg.delivery_error}` : ''}
+                                        </div>
+                                    )}
                                     <div className={`flex items-center justify-between gap-2 mt-2 pt-2 border-t ${isUser ? 'border-border/50 text-muted-foreground' : 'border-white/10 text-white/60'}`}>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[9px] font-bold uppercase tracking-tighter">

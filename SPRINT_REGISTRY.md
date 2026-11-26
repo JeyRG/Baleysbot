@@ -123,6 +123,17 @@ Construir e integrar un sistema centralizado, modular, seguro y de alta disponib
 
 ---
 
+### [x] Sprint 10-13: Auditoría Lógica Integral, Blindaje SecOps, Resiliencia y Parámetros Editables en Dashboard
+- [x] **Estado**: Completado
+- [x] **Tareas**:
+  - [x] **SecOps & Guardas de Handover**: Eliminación de `NODE_TLS_REJECT_UNAUTHORIZED = '0'` global en [app.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/app.js) (aislado solo a descargas de `posgradounac.edu.pe`), protección Bearer/API Key en rutas `/bot/*` y `/v1/*` ([httpAuthMiddleware.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/httpAuthMiddleware.js)), y guarda *fail-closed* [flowGuardService.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/flowGuardService.js) en todos los flujos satélite para impedir interrupciones en modo `human_active`.
+  - [x] **Parámetros Institucionales Dinámicos en Dashboard**: Servicio [settingsService.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/settingsService.js), endpoints [settingsRoutes.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/routes/settingsRoutes.js) y módulo visual [BotSettingsManager.tsx](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/dashboard/src/components/dashboard/BotSettingsManager.tsx) para modificar en vivo fechas de admisión, cuentas bancarias, aranceles, modalidad y enlaces oficiales.
+  - [x] **Higiene de Memoria Semántica y Ventana Conversacional**: Desactivación del auto-guardado directo del LLM en `semantic_cache` (restringido exclusivamente a respuestas aprobadas/corregidas desde el Dashboard), ventana deslizante de memoria corta (4 turnos) y Circuit Breaker por modelo en [grokClient.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/grokClient.js).
+  - [x] **Persistencia Asíncrona, Cola Durable y Optimización SQL**: Eliminación de `fs.readFileSync`/`writeFileSync` por mensaje en [userService.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/userService.js), cola durable [leadQueueService.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/leadQueueService.js), alerta de fallos de entrega (`delivery_status = 'failed'`) en [MessageList.tsx](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/dashboard/src/components/chat/MessageList.tsx) y consolidación a 1 `LEFT JOIN` parametrizado en [inscriptionService.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/inscriptionService.js).
+  - [x] **Suite de Pruebas Automatizadas**: Creación y validación de [botLogic.test.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/tests/botLogic.test.js) con `node:test`.
+
+---
+
 ## RESUMEN EJECUTIVO DE ENTREGABLES
 1. **Base de Datos Académica Universitaria**:
    - Conexión: [dbClient.js](file:///c:/Users/JEYSON/3D%20Objects/BOT2703/base-js-baileys-memory/src/services/dbClient.js) con queries parametrizadas a `epgunac_epgunac`.

@@ -1,0 +1,49 @@
+{
+  "value": {
+    "admision": {
+      "proceso_actual": "2027-I",
+      "cierre_inscripciones": "Hasta el 10 de Agosto del 2026",
+      "fecha_examen": "19 y 20 de Agosto del 2026",
+      "fecha_entrevistas": "19 y 20 de Agosto del 2026",
+      "inicio_clases": "1 de Setiembre del 2026",
+      "nota_evaluacion": "El proceso de admisión consta de dos etapas: Evaluación de Expediente (CV en plataforma GED) y Entrevista Personal virtual (no es examen escrito descalificatorio)."
+    },
+    "pagos": {
+      "banco": "Scotiabank",
+      "cuenta_general": "000-3747336",
+      "cci_general": "009-100-000003747336-90",
+      "cuenta_especialidad": "000-1797042",
+      "cci_especialidad": "009-100-000001797042-97",
+      "inscripcion_maestria": "S/ 200",
+      "matricula_maestria": "S/ 100",
+      "semestre_maestria": "S/ 2100",
+      "duracion_maestria": "3 ciclos",
+      "inscripcion_doctorado": "S/ 250",
+      "matricula_doctorado": "S/ 100",
+      "semestre_doctorado": "S/ 2100",
+      "duracion_doctorado": "6 ciclos",
+      "inscripcion_especialidad": "S/ 120",
+      "matricula_especialidad": "S/ 200",
+      "semestre_especialidad": "S/ 1400",
+      "duracion_especialidad": "2 semestres"
+    },
+    "modalidad_atencion": {
+      "modalidad_titulo": "Presencial con Herramientas Tecnológicas",
+      "modalidad_resumen": "80% virtual / 20% presencial — Asistencia 1 vez al mes (clase híbrida). El grado académico se otorga con modalidad PRESENCIAL (cumple normativa SUNEDU).",
+      "horario_ged": "Lunes a Viernes de 08:00 a 16:00 horas",
+      "telefono_soporte": "900969591",
+      "limite_leads_diario": 50
+    },
+    "enlaces": {
+      "whatsapp_admision_general": "https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&mlr=4",
+      "portal_inscripcion": "https://posgradounac.edu.pe/INSCRIPCION/",
+      "portal_ged": "https://posgradounac.edu.pe/GED/",
+      "portal_ged_login": "https://posgradounac.edu.pe/GED/login.php",
+      "portal_requisitos": "https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php",
+      "portal_sga": "https://sga.unac.edu.pe"
+    }
+  },
+  "updated_at": "2026-11-25T23:09:18.698Z",
+  "updated_by_name": "Admin",
+  "source": "supabase"
+}

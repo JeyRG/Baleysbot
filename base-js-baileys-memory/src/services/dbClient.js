@@ -1,7 +1,7 @@
 /**
  * Cliente agnóstico y resiliente para la base de datos SQL local de inscripciones.
  * Soporta conexión por PostgreSQL (pg) o MySQL (mysql2) mediante carga dinámica.
- * Si las dependencias no están instaladas o USE_LOCAL_DB es false, permite fallback transparente.
+ * Incluye connectTimeout estricto, auto-recuperación ante caídas iniciales y cierre ordenado.
  */
 
 const DB_TYPE = process.env.LOCAL_DB_TYPE || process.env.DB_TYPE || 'mysql'; // 'mysql' | 'postgres'
@@ -18,13 +18,14 @@ let initPromise = null;
 
 async function initPool() {
     if (!USE_LOCAL_DB) return;
+    if (mysqlPool || pgPool) return;
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
         try {
             if (DB_TYPE === 'mysql') {
                 const mysql = await import('mysql2/promise');
-                mysqlPool = mysql.default.createPool({
+                const pool = mysql.default.createPool({
                     host: DB_HOST,
                     port: DB_PORT,
                     user: DB_USER,
@@ -33,12 +34,16 @@ async function initPool() {
                     waitForConnections: true,
                     connectionLimit: 10,
                     queueLimit: 0,
+                    connectTimeout: 5000,
+                    enableKeepAlive: true,
+                    keepAliveInitialDelay: 10000,
                 });
+                mysqlPool = pool;
                 console.log(`[LocalSQL] Pool MySQL inicializado para ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
             } else {
                 const pg = await import('pg');
                 const { Pool } = pg.default || pg;
-                pgPool = new Pool({
+                const pool = new Pool({
                     host: DB_HOST,
                     port: DB_PORT,
                     user: DB_USER,
@@ -46,22 +51,29 @@ async function initPool() {
                     database: DB_NAME,
                     max: 10,
                     idleTimeoutMillis: 30000,
+                    connectionTimeoutMillis: 5000,
                 });
-                pgPool.on('error', (err) => {
+                pool.on('error', (err) => {
                     console.error('[LocalSQL] Error inesperado en pool PostgreSQL:', err.message);
                 });
+                pgPool = pool;
                 console.log(`[LocalSQL] Pool PostgreSQL inicializado para ${DB_HOST}:${DB_PORT}/${DB_NAME}`);
             }
         } catch (e) {
+            mysqlPool = null;
+            pgPool = null;
             console.warn(`[LocalSQL] No se pudo inicializar el driver ${DB_TYPE}:`, e.message);
-            console.warn('[LocalSQL] Se activará el fallback automático a Supabase.');
+            console.warn('[LocalSQL] Se activará fallback automático a Supabase y se reintentará en próximas consultas.');
+        } finally {
+            if (!mysqlPool && !pgPool) {
+                initPromise = null; // Permitir auto-reconexión posterior
+            }
         }
     })();
 
     return initPromise;
 }
 
-// Iniciar en segundo plano si está activo
 if (USE_LOCAL_DB) {
     initPool();
 }
@@ -92,6 +104,22 @@ export async function queryLocalDb(text, params = []) {
 
 export function isLocalDbEnabled() {
     return USE_LOCAL_DB;
+}
+
+export async function closeLocalDbPools() {
+    try {
+        if (mysqlPool) {
+            await mysqlPool.end();
+            mysqlPool = null;
+        }
+        if (pgPool) {
+            await pgPool.end();
+            pgPool = null;
+        }
+        initPromise = null;
+    } catch (err) {
+        console.warn('[LocalSQL] Advertencia cerrando pool SQL:', err.message);
+    }
 }
 
 export { pgPool, mysqlPool };

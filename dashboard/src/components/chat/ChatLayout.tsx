@@ -5,6 +5,7 @@ import { MessageList } from './MessageList';
 import DashboardOverview from '../dashboard/DashboardOverview';
 import ConnectionStatus from '../dashboard/ConnectionStatus';
 import KnowledgeManager from '../dashboard/KnowledgeManager';
+import BotSettingsManager from '../dashboard/BotSettingsManager';
 import Analytics from '../dashboard/Analytics';
 import UsersManager from '../dashboard/UsersManager';
 import AuditLog from '../dashboard/AuditLog';
@@ -55,7 +56,7 @@ export function ChatLayout() {
     const [conversations, setConversations] = useState<any[]>([]);
     const [students, setStudents] = useState<any[]>([]);
     const [activeConv, setActiveConv] = useState<any | null>(null);
-    const [activeView, setActiveView] = useState<'inbox' | 'dashboard' | 'connection' | 'training' | 'analytics' | 'users' | 'audit' | 'agentstats'>('dashboard');
+    const [activeView, setActiveView] = useState<'inbox' | 'dashboard' | 'connection' | 'training' | 'botsettings' | 'analytics' | 'users' | 'audit' | 'agentstats'>('dashboard');
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [filterMode, setFilterMode] = useState<'all' | 'support' | 'queue'>('all');
     const [isNavOpen, setIsNavOpen] = useState(true);
@@ -240,56 +241,59 @@ export function ChatLayout() {
             {!isNavOpen && (
                 <button
                     onClick={() => setIsNavOpen(true)}
-                    className="fixed bottom-6 left-6 w-12 h-12 bg-primary text-primary-foreground rounded-2xl flex items-center justify-center shadow-2xl z-50 hover:scale-110 transition-transform animate-in fade-in slide-in-from-left-4"
+                    className="fixed bottom-5 left-5 w-10 h-10 bg-primary text-primary-foreground rounded-md flex items-center justify-center shadow-md z-50 hover:bg-primary/90 transition-colors cursor-pointer"
+                    title="Expandir barra de navegación"
                 >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></svg>
                 </button>
             )}
 
-            {/* Side Navigation */}
-            <nav className={`bg-[hsl(var(--sidebar-bg))] border-r border-border/5 flex flex-col py-8 z-40 transition-all duration-500 ease-in-out ${isNavOpen ? 'w-64 px-4' : 'w-0 opacity-0 -translate-x-full overflow-hidden'}`}>
-                <div className="flex items-center gap-3 px-4 mb-10 shrink-0">
-                    <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/30">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
+            {/* Side Navigation - Clean & Crafted (Anti-AI) */}
+            <nav className={`bg-card border-r border-border flex flex-col py-5 z-40 transition-all duration-300 ease-in-out ${isNavOpen ? 'w-60 px-3' : 'w-0 opacity-0 -translate-x-full overflow-hidden'}`}>
+                {/* Brand Header */}
+                <div className="flex items-center gap-2.5 px-2 mb-6 shrink-0">
+                    <div className="w-8 h-8 bg-foreground text-background rounded-md flex items-center justify-center font-bold text-xs shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-[hsl(var(--sidebar-text))] font-black text-sm tracking-tight">Bot2703</span>
-                        <span className="text-primary font-bold uppercase tracking-widest text-[10px]">Admin</span>
+                        <span className="font-semibold text-xs tracking-tight text-foreground">UNAC Posgrado</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">Consola v2.4</span>
                     </div>
                     <button
                         onClick={() => setIsNavOpen(false)}
-                        className="ml-auto p-2 text-slate-500 hover:text-white transition-colors"
-                        title="Ocultar"
+                        className="ml-auto p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title="Contraer menú"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
                     </button>
                 </div>
 
-                <div className="space-y-2 flex-1">
+                {/* Nav Links */}
+                <div className="space-y-1 flex-1">
                     <button
                         onClick={() => setActiveView('dashboard')}
-                        className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'dashboard' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'dashboard' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-                        <span className="font-bold text-sm">Dashboard</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+                        <span>Dashboard</span>
                     </button>
 
                     <button
                         onClick={() => setActiveView('inbox')}
-                        className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all duration-300 ${activeView === 'inbox' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'inbox' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                     >
-                        <div className="flex items-center gap-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                            <span className="font-bold text-sm">Inbox Mensajes</span>
+                        <div className="flex items-center gap-2.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                            <span>Inbox Mensajes</span>
                         </div>
                         <div className="flex items-center gap-1.5">
                             {totalUnread > 0 && (
-                                <span className="min-w-[20px] h-[20px] bg-primary rounded-full flex items-center justify-center text-[10px] text-primary-foreground font-black px-1">
+                                <span className="min-w-[18px] h-[18px] bg-primary rounded-full flex items-center justify-center text-[9px] text-primary-foreground font-mono font-bold px-1">
                                     {totalUnread > 99 ? '99+' : totalUnread}
                                 </span>
                             )}
                             {supportCount > 0 && (
-                                <span className="w-5 h-5 bg-destructive rounded-full flex items-center justify-center text-[10px] text-destructive-foreground font-black animate-pulse shadow-lg shadow-destructive/20">
+                                <span className="min-w-[18px] h-[18px] bg-rose-500 rounded-full flex items-center justify-center text-[9px] text-white font-mono font-bold">
                                     {supportCount}
                                 </span>
                             )}
@@ -298,79 +302,87 @@ export function ChatLayout() {
 
                     <button
                         onClick={() => setActiveView('training')}
-                        className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'training' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'training' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-                        <span className="font-bold text-sm">Entrenamiento</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+                        <span>Entrenamiento</span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveView('botsettings')}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'botsettings' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+                        <span>Datos del Bot</span>
                     </button>
 
                     <button
                         onClick={() => setActiveView('analytics')}
-                        className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'analytics' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'analytics' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
-                        <span className="font-bold text-sm">Métricas</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>
+                        <span>Métricas</span>
                     </button>
+
                     <button
                         onClick={() => setActiveView('agentstats')}
-                        className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'agentstats' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'agentstats' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                        <span className="font-bold text-sm">Actividad Agentes</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                        <span>Actividad Agentes</span>
                     </button>
 
                     {currentUser?.role === 'superadmin' && (
                         <>
                             <button
                                 onClick={() => setActiveView('users')}
-                                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'users' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'users' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                                <span className="font-bold text-sm">Cuentas</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                                <span>Cuentas</span>
                             </button>
 
                             <button
                                 onClick={() => setActiveView('audit')}
-                                className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'audit' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'audit' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                                <span className="font-bold text-sm">Auditoría</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+                                <span>Auditoría</span>
                             </button>
                         </>
                     )}
 
-
-
                     <button
                         onClick={() => setActiveView('connection')}
-                        className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 ${activeView === 'connection' ? 'bg-primary/20 text-primary shadow-inner' : 'text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5'}`}
+                        className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${activeView === 'connection' ? 'bg-secondary text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'}`}
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></svg>
-                        <span className="font-bold text-sm">Conexión QR</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></svg>
+                        <span>Conexión QR</span>
                     </button>
                 </div>
 
-                <div className="mt-auto space-y-2">
+                {/* Footer Controls */}
+                <div className="mt-auto space-y-1 pt-3 border-t border-border">
                     <button
                         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                        className="w-full flex items-center gap-4 p-4 rounded-2xl text-[hsl(var(--sidebar-text))]/60 hover:text-[hsl(var(--sidebar-text))] hover:bg-white/5 transition-all duration-300"
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors cursor-pointer"
                     >
                         {mounted ? (
                             <>
-                                {theme === 'dark' ? <Sun size={22} strokeWidth={2} /> : <Moon size={22} strokeWidth={2} />}
-                                <span className="font-bold text-sm">Tema {theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
+                                {theme === 'dark' ? <Sun size={16} strokeWidth={2} /> : <Moon size={16} strokeWidth={2} />}
+                                <span>Tema {theme === 'dark' ? 'Claro' : 'Oscuro'}</span>
                             </>
                         ) : (
-                            <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                            <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                         )}
                     </button>
 
                     <button
                         onClick={handleLogout}
-                        className="w-full flex items-center gap-4 p-4 rounded-2xl text-[hsl(var(--sidebar-text))]/60 hover:text-destructive hover:bg-destructive/10 transition-all duration-300"
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-                        <span className="font-bold text-sm">Cerrar Sesión</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                        <span>Cerrar Sesión</span>
                     </button>
                 </div>
             </nav>
@@ -444,7 +456,13 @@ export function ChatLayout() {
                         transition={{ duration: 0.3, ease: 'easeInOut' }}
                         className="flex-1 overflow-y-auto"
                     >
-                        <DashboardOverview />
+                        <DashboardOverview
+                            onSelectConversation={(urgentConv) => {
+                                const target = conversations.find(c => c.id === urgentConv.id || c.wa_id === urgentConv.wa_id) || urgentConv;
+                                handleSelectConv(target);
+                                setActiveView('inbox');
+                            }}
+                        />
                     </motion.main>
                 ) : activeView === 'training' ? (
                     <motion.main
@@ -456,6 +474,17 @@ export function ChatLayout() {
                         className="flex-1 overflow-y-auto"
                     >
                         <KnowledgeManager />
+                    </motion.main>
+                ) : activeView === 'botsettings' ? (
+                    <motion.main
+                        key="botsettings"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="flex-1 overflow-y-auto"
+                    >
+                        <BotSettingsManager onNavigateToTraining={() => setActiveView('training')} />
                     </motion.main>
                 ) : activeView === 'analytics' ? (
                     <motion.main

@@ -26,10 +26,18 @@ export function ConversationList({
     const [searchQuery, setSearchQuery] = useState('');
     const [channelFilter, setChannelFilter] = useState<'all' | 'whatsapp' | 'web'>('all');
 
+    const isWeb = (c: any): boolean => {
+        if (!c) return false;
+        const waId = (c.wa_id || '').toLowerCase();
+        return waId.startsWith('web') || waId.includes('web_') || waId.includes('web-') || c.metadata?.channel === 'web' || c.channel === 'web';
+    };
+
+    const isWa = (c: any): boolean => !isWeb(c);
+
     const getStudentName = (waId: string, conv?: any) => {
         if (conv?.metadata?.name) return conv.metadata.name;
         if (conv?.metadata?.full_name) return conv.metadata.full_name;
-        if (waId.includes('web')) return 'Visitante Web';
+        if (isWeb(conv || { wa_id: waId })) return 'Visitante Web';
         const student = students.find(s => s.wa_id === waId);
         return student?.full_name || waId.split('@')[0];
     };
@@ -40,23 +48,33 @@ export function ConversationList({
     };
 
     const supportCount = conversations.filter(c => c.status === 'human_active').length;
-    const waCount = useMemo(() => conversations.filter(c => !c.wa_id.includes('web')).length, [conversations]);
-    const webCount = useMemo(() => conversations.filter(c => c.wa_id.includes('web')).length, [conversations]);
+
+    // Conteo contextual de acuerdo al modo activo (all / support / queue)
+    const baseByStatus = useMemo(() => {
+        if (filterMode === 'support' || filterMode === 'queue') {
+            return conversations.filter(c => c.status === 'human_active');
+        }
+        return conversations;
+    }, [conversations, filterMode]);
+
+    const totalCount = baseByStatus.length;
+    const waCount = useMemo(() => baseByStatus.filter(isWa).length, [baseByStatus]);
+    const webCount = useMemo(() => baseByStatus.filter(isWeb).length, [baseByStatus]);
+
+    // Conteos globales
+    const globalTotalCount = conversations.length;
+    const globalWaCount = useMemo(() => conversations.filter(isWa).length, [conversations]);
+    const globalWebCount = useMemo(() => conversations.filter(isWeb).length, [conversations]);
 
     // Filter + sort logic
     const filteredConversations = useMemo(() => {
-        let filtered = conversations;
+        let filtered = baseByStatus;
 
         // Apply channel filter
         if (channelFilter === 'whatsapp') {
-            filtered = filtered.filter(c => !c.wa_id.includes('web'));
+            filtered = filtered.filter(isWa);
         } else if (channelFilter === 'web') {
-            filtered = filtered.filter(c => c.wa_id.includes('web'));
-        }
-
-        // Apply status filter
-        if (filterMode === 'support' || filterMode === 'queue') {
-            filtered = filtered.filter(c => c.status === 'human_active');
+            filtered = filtered.filter(isWeb);
         }
 
         // Apply search
@@ -64,7 +82,7 @@ export function ConversationList({
             const q = searchQuery.toLowerCase();
             filtered = filtered.filter(conv => {
                 const name = getStudentName(conv.wa_id, conv).toLowerCase();
-                const phone = conv.wa_id.split('@')[0];
+                const phone = (conv.metadata?.phone || conv.wa_id.split('@')[0] || '').toLowerCase();
                 return name.includes(q) || phone.includes(q);
             });
         }
@@ -77,7 +95,7 @@ export function ConversationList({
         }
 
         return filtered;
-    }, [conversations, filterMode, searchQuery, students]);
+    }, [baseByStatus, channelFilter, searchQuery, students, filterMode]);
 
     const timeAgo = (dateStr: string) => {
         const now = new Date();
@@ -189,7 +207,7 @@ export function ConversationList({
                     className={`flex-1 py-1 px-2 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border ${channelFilter === 'all' ? 'bg-primary text-primary-foreground border-primary shadow-xs' : 'bg-background/80 text-muted-foreground border-border/60 hover:text-foreground hover:bg-secondary/60'}`}
                 >
                     Todos
-                    <span className="text-[9px] opacity-75 font-normal">({conversations.length})</span>
+                    <span className="text-[9px] opacity-75 font-normal">({totalCount})</span>
                 </button>
                 <button
                     onClick={() => setChannelFilter('whatsapp')}
@@ -200,7 +218,13 @@ export function ConversationList({
                     <span className="text-[9px] opacity-75 font-normal">({waCount})</span>
                 </button>
                 <button
-                    onClick={() => setChannelFilter('web')}
+                    onClick={() => {
+                        setChannelFilter('web');
+                        // Si en modo apoyo/cola no hay chats web pero sí existen en general, cambiar a 'all' para mostrarlos
+                        if (webCount === 0 && (filterMode === 'support' || filterMode === 'queue') && globalWebCount > 0) {
+                            onFilterChange('all');
+                        }
+                    }}
                     className={`flex-1 py-1 px-2 text-[10px] font-bold rounded-lg transition-all flex items-center justify-center gap-1 border ${channelFilter === 'web' ? 'bg-blue-600 text-white border-blue-600 shadow-xs' : 'bg-background/80 text-muted-foreground border-border/60 hover:text-blue-600 hover:bg-blue-500/10'}`}
                 >
                     <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
@@ -229,22 +253,43 @@ export function ConversationList({
                         <p className="text-muted-foreground text-sm font-bold">
                             {searchQuery
                                 ? 'Sin resultados'
-                                : filterMode === 'support' || filterMode === 'queue'
-                                    ? 'Sin solicitudes de apoyo'
-                                    : 'No hay conversaciones'}
+                                : channelFilter === 'web' && (filterMode === 'support' || filterMode === 'queue')
+                                    ? 'Sin solicitudes de apoyo en Web'
+                                    : channelFilter === 'whatsapp' && (filterMode === 'support' || filterMode === 'queue')
+                                        ? 'Sin solicitudes de apoyo en WhatsApp'
+                                        : filterMode === 'support' || filterMode === 'queue'
+                                            ? 'Sin solicitudes de apoyo'
+                                            : channelFilter === 'web'
+                                                ? 'No hay conversaciones web'
+                                                : channelFilter === 'whatsapp'
+                                                    ? 'No hay conversaciones de WhatsApp'
+                                                    : 'No hay conversaciones'}
                         </p>
                         <p className="text-muted-foreground text-[10px] uppercase font-bold tracking-tighter">
                             {searchQuery
                                 ? `No se encontraron resultados para "${searchQuery}"`
-                                : filterMode === 'support' || filterMode === 'queue'
-                                    ? 'Todas las conversaciones están siendo atendidas por el bot'
-                                    : 'Esperando mensajes de WhatsApp...'}
+                                : channelFilter === 'web' && (filterMode === 'support' || filterMode === 'queue')
+                                    ? `Hay ${globalWebCount} conversaciones web activas en modo bot.`
+                                    : filterMode === 'support' || filterMode === 'queue'
+                                        ? 'Todas las conversaciones están siendo atendidas por el bot'
+                                        : channelFilter === 'web'
+                                            ? 'Esperando interacciones desde el widget web...'
+                                            : 'Esperando mensajes de WhatsApp...'}
                         </p>
+                        {channelFilter === 'web' && (filterMode === 'support' || filterMode === 'queue') && globalWebCount > 0 && (
+                            <button
+                                onClick={() => onFilterChange('all')}
+                                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 rounded-lg hover:bg-blue-100 transition-colors border border-blue-200 dark:border-blue-800"
+                            >
+                                Ver todas las conversaciones Web ({globalWebCount})
+                            </button>
+                        )}
                     </div>
                 ) : (
                     filteredConversations.map((conv, index) => {
                         const isActive = activeId === conv.id;
                         const isHuman = conv.status === 'human_active';
+                        const isWebConv = isWeb(conv);
                         const displayName = getStudentName(conv.wa_id, conv);
                         const condition = getStudentCondition(conv.wa_id, conv);
                         const lastMsg = lastMessages[conv.wa_id];
@@ -270,13 +315,13 @@ export function ConversationList({
 
                                 <div className="flex gap-3 items-start">
                                     <div className="relative shrink-0 flex items-center justify-center mt-0.5">
-                                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white shadow-lg transition-transform group-hover:scale-105 text-sm ${isHuman ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-orange-500/20' : 'bg-gradient-to-br from-blue-500 to-indigo-600 shadow-blue-500/20'}`}>
+                                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white shadow-lg transition-transform group-hover:scale-105 text-sm ${isHuman ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-orange-500/20' : isWebConv ? 'bg-gradient-to-br from-blue-600 to-cyan-600 shadow-blue-500/20' : 'bg-gradient-to-br from-emerald-500 to-teal-600 shadow-emerald-500/20'}`}>
                                             {displayName.charAt(0).toUpperCase()}
                                         </div>
                                         {/* Source Indicator */}
-                                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-md border-2 border-card flex items-center justify-center shadow-sm ${conv.wa_id.includes('web') ? 'bg-slate-800' : 'bg-emerald-500'}`}>
-                                            {conv.wa_id.includes('web') ? (
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
+                                        <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-md border-2 border-card flex items-center justify-center shadow-sm ${isWebConv ? 'bg-blue-600' : 'bg-emerald-500'}`}>
+                                            {isWebConv ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>
                                             ) : (
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" /><path d="M20.52 3.449C18.24 1.245 15.24 0 12.045 0 5.463 0 .104 5.334.101 11.893c-.001 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654c1.737.948 3.693 1.447 5.683 1.448h.005c6.579 0 11.94-5.335 11.943-11.893.002-3.176-1.233-6.162-3.473-8.452zM12.045 21.785h-.004c-1.774 0-3.513-.477-5.032-1.378l-.36-.214-3.742.981 1-3.648-.235-.374c-.99-1.574-1.512-3.393-1.511-5.26.002-5.45 4.437-9.884 9.889-9.884 2.64 0 5.122 1.03 6.988 2.898 1.866 1.869 2.893 4.352 2.892 6.993-.003 5.45-4.437 9.886-9.885 9.886z" /></svg>
                                             )}
@@ -330,6 +375,11 @@ export function ConversationList({
                                                         <span className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground">Bot Activo</span>
                                                     </div>
                                                 )}
+                                                {isWebConv && (
+                                                    <span className="text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded border bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                                                        Web
+                                                    </span>
+                                                )}
                                                 {condition && (
                                                     <span className={`text-[8px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded border ${
                                                         condition.toLowerCase() === 'postulante'
@@ -342,10 +392,16 @@ export function ConversationList({
                                                     </span>
                                                 )}
                                             </div>
-                                            {!conv.wa_id.includes('web') && displayName !== conv.wa_id.split('@')[0] && (
-                                                <span className="text-[9px] text-muted-foreground font-medium">
-                                                    {conv.wa_id.split('@')[0]}
+                                            {isWebConv ? (
+                                                <span className="text-[9px] text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1">
+                                                    {conv.metadata?.phone ? `📱 ${conv.metadata.phone}` : '🌐 Web'}
                                                 </span>
+                                            ) : (
+                                                displayName !== conv.wa_id.split('@')[0] && (
+                                                    <span className="text-[9px] text-muted-foreground font-medium">
+                                                        {conv.wa_id.split('@')[0]}
+                                                    </span>
+                                                )
                                             )}
                                         </div>
                                     </div>
