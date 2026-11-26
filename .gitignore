@@ -38,6 +38,10 @@ yarn-error.log*
 dist/
 *.tsbuildinfo
 
+# Copias de seguridad y dumps locales (seguridad de datos de leads)
+backups/
+**/backups/
+
 # Datos sensibles / runtime del bot (no versionar)
 **/user_data.json
 **/token_usage.json

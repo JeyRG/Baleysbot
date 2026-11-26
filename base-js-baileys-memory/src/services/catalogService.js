@@ -507,8 +507,25 @@ export const findProgramFuzzy = (query) => {
     return null
 }
 
+// Mapeo oficial de acrónimos de facultades de la UNAC por nombre normalizado
+const FACULTY_ACRONYMS = {
+    'fiis': 'ingenieria industrial y de sistemas',
+    'fcs': 'ciencias de la salud',
+    'fce': 'ciencias economicas',
+    'fca': 'ciencias administrativas',
+    'fcc': 'ciencias contables',
+    'fiq': 'ingenieria quimica',
+    'fcnm': 'ciencias naturales y matematica',
+    'fipa': 'ingenieria pesquera y de alimentos',
+    'fime': 'ingenieria mecanica',
+    'fiee': 'ingenieria electrica y electronica',
+    'fiarn': 'ingenieria ambiental',
+    'fcedu': 'ciencias de la educacion',
+    'fceh': 'ciencias de la educacion'
+};
+
 /**
- * Busca si el usuario menciona una facultad.
+ * Busca si el usuario menciona una facultad (por nombre completo, palabras clave o acrónimo como FIIS, FIEE, etc.).
  */
 export const findFaculty = (query) => {
     const catalog = getCatalog()
@@ -519,6 +536,21 @@ export const findFaculty = (query) => {
     if (/^(si|sí|ok|ya|claro|dale|yes)$/.test(queryNorm)) return null;
     if (queryNorm.length < 3) return null;
 
+    // 1. Verificación prioritaria por acrónimo (ej. "fiis", "fiee", "fime", "fiarn")
+    for (const [acronym, targetSubstr] of Object.entries(FACULTY_ACRONYMS)) {
+        const regex = new RegExp(`\\b${acronym}\\b`, 'i');
+        if (regex.test(queryNorm) || regex.test(query)) {
+            const normalizedTarget = normalizeText(targetSubstr);
+            for (const facultyId in catalog) {
+                const facNorm = normalizeText(catalog[facultyId].nombre);
+                if (facNorm.includes(normalizedTarget)) {
+                    return catalog[facultyId];
+                }
+            }
+        }
+    }
+
+    // 2. Coincidencia por nombre completo o palabras clave
     for (const facultyId in catalog) {
         const facNorm = normalizeText(catalog[facultyId].nombre);
         // Coincidencia exacta o frase completa contenida
@@ -535,6 +567,66 @@ export const findFaculty = (query) => {
     }
     return null
 }
+
+/**
+ * Mapeo de orientación temática: ayuda a orientar al postulante cuando consulta
+ * por temas específicos (ciberseguridad, big data, salud ocupacional) hacia los programas reales de la UNAC.
+ */
+export const findThematicMatch = (query) => {
+    if (!query) return null;
+    const queryNorm = normalizeText(query);
+    const themes = [
+        {
+            keywords: ['ciberseguridad', 'seguridad de la informacion', 'seguridad informatica', 'seguridad digital', 'hacking', 'redes'],
+            facultadNombre: 'Facultad de Ingeniería Industrial y de Sistemas (FIIS)',
+            programas: ['Maestría en Ingeniería de Sistemas', 'Maestría en Inteligencia Artificial y Ciencia de Datos'],
+            explicacion: 'En la Escuela de Posgrado UNAC (FIIS) no existe una maestría titulada exclusivamente "Ciberseguridad", pero las áreas de seguridad de la información, auditoría de sistemas y redes avanzadas se desarrollan dentro de la **Maestría en Ingeniería de Sistemas**. Además, en la FIIS se imparte la **Maestría en Inteligencia Artificial y Ciencia de Datos**.'
+        },
+        {
+            keywords: ['inteligencia artificial', 'ia', 'data science', 'ciencia de datos', 'machine learning', 'big data'],
+            facultadNombre: 'Facultad de Ingeniería Industrial y de Sistemas (FIIS)',
+            programas: ['Maestría en Inteligencia Artificial y Ciencia de Datos', 'Maestría en Ingeniería de Sistemas'],
+            explicacion: 'En la FIIS contamos con la **Maestría en Inteligencia Artificial y Ciencia de Datos** y la **Maestría en Ingeniería de Sistemas**.'
+        },
+        {
+            keywords: ['logistica', 'supply chain', 'cadena de suministro', 'almacenes'],
+            facultadNombre: 'Facultad de Ingeniería Industrial y de Sistemas (FIIS)',
+            programas: ['Maestría en Ingeniería Industrial con Mención en Gerencia en Logística'],
+            explicacion: 'En la FIIS contamos con la **Maestría en Ingeniería Industrial con Mención en Gerencia en Logística**.'
+        },
+        {
+            keywords: ['calidad', 'productividad', 'lean', 'procesos industriales'],
+            facultadNombre: 'Facultad de Ingeniería Industrial y de Sistemas (FIIS)',
+            programas: ['Maestría en Ingeniería Industrial con Mención en Gerencia de Calidad y Productividad'],
+            explicacion: 'En la FIIS contamos con la **Maestría en Ingeniería Industrial con Mención en Gerencia de Calidad y Productividad**.'
+        },
+        {
+            keywords: ['tributacion', 'impuestos', 'fiscal', 'sunat'],
+            facultadNombre: 'Facultad de Ciencias Contables (FCC)',
+            programas: ['Maestría en Tributación'],
+            explicacion: 'En la Facultad de Ciencias Contables contamos con la **Maestría en Tributación**.'
+        },
+        {
+            keywords: ['salud ocupacional', 'seguridad en el trabajo', 'salud laboral', 'ergonomia'],
+            facultadNombre: 'Facultad de Ciencias de la Salud (FCS)',
+            programas: ['Maestría en Salud Ocupacional y Ambiental'],
+            explicacion: 'En la Facultad de Ciencias de la Salud contamos con la **Maestría en Salud Ocupacional y Ambiental**.'
+        },
+        {
+            keywords: ['finanzas', 'inversiones', 'proyectos de inversion'],
+            facultadNombre: 'Facultad de Ciencias Económicas (FCE)',
+            programas: ['Maestría en Proyectos de Inversión', 'Maestría en Economía con Mención en Finanzas'],
+            explicacion: 'En la Facultad de Ciencias Económicas contamos con la **Maestría en Proyectos de Inversión** y **Maestría en Economía con Mención en Finanzas**.'
+        }
+    ];
+
+    for (const theme of themes) {
+        if (theme.keywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(queryNorm))) {
+            return theme;
+        }
+    }
+    return null;
+};
 
 /**
  * Genera un contexto detallado de una facultad específica.

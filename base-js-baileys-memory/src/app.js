@@ -331,10 +331,10 @@ REGLAS ESTRICTAS:
 2. Si el contexto tiene costos o cuentas → úsalos exactamente sin alterar cifras.
 3. Si preguntan por fechas → da exactamente las del PROCESO VIGENTE del contexto.
 4. Si preguntan por requisitos → lista los del contexto numerados y ordenados.
-5. Responde en máximo 3-4 líneas concisas. Sé directo.
-6. Si la información específica no está en el contexto → responde únicamente [SOLICITUD_ASESOR].
+5. Responde en máximo 3-5 líneas concisas, directas y con buena estructura.
+6. Si el usuario consulta por un tema, tecnología o especialidad académica afín a nuestras facultades (ej. ciberseguridad, big data, logística, finanzas, salud ocupacional), ORIENTA al postulante indicando qué programas oficiales afines ofrece la UNAC en esa facultad y cómo se vinculan. Solo si el usuario solicita expresamente hablar con una persona ("asesor", "humano") o si es un trámite administrativo personal que no puedes responder, responde únicamente [SOLICITUD_ASESOR].
 7. No menciones otras universidades ni compares precios.
-8. Trato cordial, usa emojis con moderación solo para claridad.`;
+8. Trato cordial y profesional personalizado (${userName || 'estimado postulante'}), usa viñetas o negritas para nombres de programas.`;
 
         const historyTurns = Array.isArray(options.historyTurns) ? options.historyTurns : [];
         const messages = [
