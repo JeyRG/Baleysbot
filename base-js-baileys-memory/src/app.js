@@ -324,17 +324,22 @@ const getGrokCompletion = async (userName, message, context = '', options = {}) 
         const combinedContext = `${institutionalSummary}\n\n${context || ''}`.trim();
         const cleanContext = compactContext(combinedContext, options.maxContextChars ?? 2800);
 
-        const systemPrompt = `Eres el Asesor Académico Virtual de la Escuela de Posgrado de la UNAC (Universidad Nacional del Callao).
+        const systemPrompt = `Te llamas ELI. Eres la Asesora Académica Virtual oficial de la Escuela de Posgrado de la UNAC (Universidad Nacional del Callao).
 
-REGLAS ESTRICTAS:
+IDENTIDAD Y ROL:
+- Tu nombre es ELI (en mayúsculas o Eli). Siempre que te presentes, di que te llamas ELI.
+- Te estás comunicando con el usuario/postulante llamado: "${userName || 'estimado postulante'}".
+- REGLA CRÍTICA DE IDENTIDAD: NUNCA digas que tu nombre es "${userName || 'el postulante'}". "${userName || 'estimado postulante'}" es la persona que te escribe, NO eres tú. Tú eres ELI.
+
+REGLAS ESTRICTAS DE RESPUESTA:
 1. Responde SOLO con datos del contexto proporcionado. NUNCA inventes cifras, fechas ni requisitos.
 2. Si el contexto tiene costos o cuentas → úsalos exactamente sin alterar cifras.
 3. Si preguntan por fechas → da exactamente las del PROCESO VIGENTE del contexto.
 4. Si preguntan por requisitos → lista los del contexto numerados y ordenados.
-5. Responde en máximo 3-5 líneas concisas, directas y con buena estructura.
+5. Responde con oraciones completas, claras y bien estructuradas. NUNCA cortes una oración a medias ni dejes ideas incompletas. Termina siempre tus oraciones concluyentemente.
 6. Si el usuario consulta por un tema, tecnología o especialidad académica afín a nuestras facultades (ej. ciberseguridad, big data, logística, finanzas, salud ocupacional), ORIENTA al postulante indicando qué programas oficiales afines ofrece la UNAC en esa facultad y cómo se vinculan. Solo si el usuario solicita expresamente hablar con una persona ("asesor", "humano") o si es un trámite administrativo personal que no puedes responder, responde únicamente [SOLICITUD_ASESOR].
 7. No menciones otras universidades ni compares precios.
-8. Trato cordial y profesional personalizado (${userName || 'estimado postulante'}), usa viñetas o negritas para nombres de programas.`;
+8. Trato cordial, empático y profesional, dirigiéndote al usuario por su nombre (${userName || 'estimado postulante'}). Usa viñetas o negritas para nombres de programas y datos clave.`;
 
         const historyTurns = Array.isArray(options.historyTurns) ? options.historyTurns : [];
         const messages = [
@@ -344,7 +349,7 @@ REGLAS ESTRICTAS:
         ];
 
         const grokResponse = await originalGetGrokCompletion(messages, {
-            maxTokens: options.maxTokens ?? 180,
+            maxTokens: options.maxTokens ?? 600,
             temperature: options.temperature ?? 0.2,
             model: options.model,
         });
@@ -733,6 +738,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             saveUser(userId, user);
             return await flowDynamic(
                 '🌟 *BIENVENIDO A LA ESCUELA DE POSGRADO DE LA UNIVERSIDAD NACIONAL DEL CALLAO* 🎓\n\n' +
+                '¡Hola! Soy *ELI*, tu asesora académica virtual.\n\n' +
                 'Aquí, la excelencia académica se combina con el compromiso y la vocación de servicio.\n\n' +
                 'Para brindarte una atención personalizada, ¿cuál es tu *nombre completo* para empezar? ✍️'
             );
@@ -772,7 +778,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                         : '';
                     return await flowDynamic(
                         `✨ *Modo Asistente Activo*\n` +
-                        `Puedes hacerme cualquier pregunta o elegir una opción:\n\n` +
+                        `Soy *ELI*, tu asesora virtual. Puedes hacerme cualquier pregunta o elegir una opción:\n\n` +
                         `1️⃣ Ver catálogo de *Maestrías*\n` +
                         `2️⃣ Ver catálogo de *Segundas Especialidades*\n` +
                         `3️⃣ Ver catálogo de *Doctorados*\n` +
@@ -885,7 +891,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                         if (selected.brochureUrl || selected.brochure) {
                             const mediaTarget = selected.brochureUrl || selected.brochure;
                             await sendMediaWithScopedUnacFallback(
-                                (caption, mediaSrc) => flowDynamic([{ body: caption, media: mediaSrc }]),
+                                async (caption, mediaSrc) => await flowDynamic([{ body: caption, media: mediaSrc }]),
                                 `📄 *Brochure Oficial:* ${selected.nombre}`,
                                 mediaTarget
                             );
@@ -908,7 +914,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                         if (item.brochureUrl || item.brochure) {
                             const mediaTarget = item.brochureUrl || item.brochure;
                             await sendMediaWithScopedUnacFallback(
-                                (caption, mediaSrc) => flowDynamic([{ body: caption, media: mediaSrc }]),
+                                async (caption, mediaSrc) => await flowDynamic([{ body: caption, media: mediaSrc }]),
                                 `📄 *Brochure Oficial:* ${item.nombre}`,
                                 mediaTarget
                             );
@@ -958,7 +964,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 pendingProgramInfoSelections.delete(userId);
                 if (pending?.brochureUrl) {
                     await sendMediaWithScopedUnacFallback(
-                        (caption, mediaSrc) => flowDynamic([{ body: caption, media: mediaSrc }]),
+                        async (caption, mediaSrc) => await flowDynamic([{ body: caption, media: mediaSrc }]),
                         `📄 *Brochure Oficial:* ${pending.nombre}`,
                         pending.brochureUrl
                     );
@@ -1214,6 +1220,18 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
             return await flowDynamic(msg);
         }
 
+        if (asksCost && !categoryIntent && !matchedProgram && matchedPrograms.length === 0 && /^(quiero saber los costos|costos|costo|precios|cuanto cuesta|cuánto cuesta|que cuesta|qué cuesta|tarifas|aranceles|pagos)\b/i.test(cleanBody)) {
+            let msg = `💰 *Costos y Aranceles de Posgrado - UNAC (${settings.admision.proceso_actual})*\n\n`;
+            msg += `🎓 *Maestrías:*\n• Inscripción: ${settings.pagos.inscripcion_maestria}\n• Semestre: ${settings.pagos.semestre_maestria} (${settings.pagos.duracion_maestria})\n\n`;
+            msg += `🎖️ *Doctorados:*\n• Inscripción: ${settings.pagos.inscripcion_doctorado}\n• Semestre: ${settings.pagos.semestre_doctorado} (${settings.pagos.duracion_doctorado})\n\n`;
+            msg += `📘 *Segundas Especialidades:*\n• Inscripción: ${settings.pagos.inscripcion_especialidad}\n• Semestre: ${settings.pagos.semestre_especialidad} (${settings.pagos.duracion_especialidad})\n\n`;
+            msg += `🏦 *Cuenta ${settings.pagos.banco}:* ${settings.pagos.cuenta_general} (CCI: ${settings.pagos.cci_general})\n\n`;
+            msg += `¿Te gustaría conocer los requisitos o detalles de algún programa en particular? 🎓`;
+
+            await logInteraction(userId, body, msg, null, 'catalog');
+            return await flowDynamic(msg);
+        }
+
         if (asksReqs && categoryIntent && !matchedProgram) {
             const tipoInfo = getTipoProgramaInfo(categoryIntent);
             if (tipoInfo?.requisitos) {
@@ -1270,7 +1288,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 await delay(1000);
                 try {
                     await sendMediaWithScopedUnacFallback(
-                        (caption, mediaSrc) => flowDynamic([{ body: caption, media: mediaSrc }]),
+                        async (caption, mediaSrc) => await flowDynamic([{ body: caption, media: mediaSrc }]),
                         `📄 *Brochure Oficial:* ${matchedProgram.nombre}`,
                         brochureUrl
                     );
@@ -1425,7 +1443,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
         // 6. Consulta Groq con ventana corta de memoria conversacional
         const historyTurns = getRecentConversationTurns(userId);
         const response = await getGrokCompletion(user.nombre, body, dynamicContext, {
-            maxTokens: 180,
+            maxTokens: 600,
             maxContextChars: 2800,
             historyTurns
         });
@@ -1487,7 +1505,7 @@ const welcomeFlow = addKeyword([EVENTS.WELCOME, /.*/])
                 try {
                     await delay(1000);
                     await sendMediaWithScopedUnacFallback(
-                        (caption, mediaSrc) => flowDynamic([{ body: caption, media: mediaSrc }]),
+                        async (caption, mediaSrc) => await flowDynamic([{ body: caption, media: mediaSrc }]),
                         `📄 *Brochure Oficial:* ${programsWithBrochure[0].nombre}`,
                         programsWithBrochure[0].brochureUrl
                     );

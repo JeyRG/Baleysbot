@@ -407,7 +407,7 @@ export function registerWebChatRoutes(server, {
                 }));
 
             let botReply = await getGrokCompletion(userName, cleanText, dynamicContext, {
-                maxTokens: 250,
+                maxTokens: 600,
                 historyTurns
             });
 

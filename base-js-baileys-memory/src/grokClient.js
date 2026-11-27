@@ -140,7 +140,7 @@ async function executeGroqRequest(targetModel, messages, options = {}) {
         model: targetModel,
         messages: compactMessages(messages),
         temperature: options.temperature ?? 0.2,
-        max_tokens: Math.min(options.maxTokens ?? 180, 250),
+        max_tokens: Math.min(options.maxTokens ?? 600, 1024),
     };
 
     if (process.env.DEBUG_GROQ_PAYLOAD === 'true') {
