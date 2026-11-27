@@ -43,6 +43,20 @@ const config: Config = {
           DEFAULT: "hsl(var(--card) / <alpha-value>)",
           foreground: "hsl(var(--card-foreground) / <alpha-value>)",
         },
+        unac: {
+          blue: {
+            DEFAULT: '#1d4ed8',
+            dark: '#0f172a',
+            header: '#0b1329',
+            hover: '#1e40af',
+            light: '#eff6ff',
+          },
+          gold: {
+            DEFAULT: '#f59e0b',
+            light: '#fbca38',
+            dark: '#d97706',
+          },
+        },
       },
     },
   },

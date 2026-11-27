@@ -38,62 +38,78 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen w-full grid lg:grid-cols-2 bg-background font-sans">
-      {/* Left Column: Technical Enterprise Brand Panel (Desktop) */}
-      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-zinc-950 text-zinc-100 border-r border-zinc-800/80 overflow-hidden">
+      {/* Left Column: Official UNAC Institutional Brand Panel (Desktop) */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-gradient-to-b from-[#060b18] via-[#0a1428] to-[#060b18] text-slate-100 border-r border-blue-900/40 overflow-hidden">
         {/* Subtle engineering grid background */}
-        <div className="absolute inset-0 grid-subtle-pattern opacity-40 pointer-events-none" />
+        <div className="absolute inset-0 grid-subtle-pattern opacity-30 pointer-events-none" />
         
-        {/* Subtle corner light accent, not overwhelming */}
-        <div className="absolute -top-40 -left-40 w-80 h-80 bg-zinc-800/30 rounded-full blur-3xl pointer-events-none" />
+        {/* Deep blue & gold subtle ambient glows */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Top: Institution & Identity */}
+        {/* Top: Institution & Identity with Official Crest */}
         <div className="relative z-10 flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-zinc-100 shadow-sm">
-            <ShieldCheck className="w-5 h-5 text-zinc-200" />
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-950 to-slate-900 border border-blue-500/30 flex items-center justify-center p-2 shadow-lg shadow-blue-950/50">
+            <img 
+              src="https://posgradounac.edu.pe/img/logo_unac.png" 
+              alt="UNAC Escudo" 
+              className="w-full h-full object-contain drop-shadow"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-base tracking-tight text-white">UNAC Posgrado</span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-zinc-800 text-zinc-300 border border-zinc-700">v2.4</span>
+              <span className="font-bold text-base tracking-tight text-white">Escuela de Posgrado UNAC</span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-blue-950/80 text-blue-300 border border-blue-700/50">Admisión 2027-I</span>
             </div>
-            <span className="text-xs text-zinc-400 font-normal">Consola de Operaciones & Admisiones</span>
+            <span className="text-xs text-slate-400 font-normal">Consola Central de Operaciones & Admisiones</span>
           </div>
         </div>
 
         {/* Middle: Key Capabilities / Architecture Notes */}
         <div className="relative z-10 my-auto py-12 space-y-8 max-w-lg">
           <div className="space-y-3">
-            <h1 className="text-3xl font-semibold tracking-tight text-white leading-tight">
-              Plataforma de gestión de leads y atención estudiantil.
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Sistema Oficial de Atención en Línea
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-white leading-tight">
+              Gestión centralizada de postulantes y atención académica.
             </h1>
-            <p className="text-zinc-400 text-sm leading-relaxed">
-              Sistema centralizado para supervisión de conversaciones WhatsApp, derivación a soporte humano y gestión de admisiones académicas en tiempo real.
+            <p className="text-slate-300 text-sm leading-relaxed">
+              Supervisión en tiempo real de consultas por WhatsApp y Portal Web, derivación prioritaria a coordinadores de maestrías y doctorados, y analítica de admisión.
             </p>
           </div>
 
           <div className="grid gap-3 pt-2">
-            <div className="flex items-start gap-3 p-3.5 rounded-lg border border-zinc-800/80 bg-zinc-900/50">
-              <MessageSquare className="w-4 h-4 text-zinc-300 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3.5 rounded-lg border border-blue-900/40 bg-blue-950/30 backdrop-blur-xs">
+              <MessageSquare className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-medium text-zinc-200">Atención Multicanal Activa</p>
-                <p className="text-[11px] text-zinc-400">Canal WhatsApp Oficial y Widget Web sincronizados bajo un único inbox.</p>
+                <p className="text-xs font-semibold text-slate-100">Atención Multicanal Sincronizada</p>
+                <p className="text-[11px] text-slate-400">Canal WhatsApp Oficial y Widget Institucional Web atendidos bajo un único inbox operativo.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3.5 rounded-lg border border-zinc-800/80 bg-zinc-900/50">
-              <Users className="w-4 h-4 text-zinc-300 shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3.5 rounded-lg border border-amber-500/30 bg-amber-950/20 backdrop-blur-xs">
+              <Users className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-medium text-zinc-200">Intervención Humana Inmediata</p>
-                <p className="text-[11px] text-zinc-400">Detección de solicitudes prioritarias con alertas sonoras y de escritorio.</p>
+                <p className="text-xs font-semibold text-slate-100">Derivación y Alertas Prioritarias</p>
+                <p className="text-[11px] text-slate-400">Detección y clasificación automática de postulantes, estudiantes y egresados para atención humana.</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Bottom: Institutional Note */}
-        <div className="relative z-10 pt-6 border-t border-zinc-800/80 text-xs text-zinc-400 flex items-center justify-between">
-          <span>Universidad Nacional del Callao</span>
-          <span className="font-mono text-[11px] text-zinc-400">Ambiente Seguro TLS 1.3</span>
+        <div className="relative z-10 pt-6 border-t border-blue-900/40 text-xs text-slate-400 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-300">Universidad Nacional del Callao</span>
+            <span className="text-slate-600">•</span>
+            <span>Callao, Perú</span>
+          </div>
+          <span className="font-mono text-[11px] text-blue-400/80">Plataforma Segura SSL</span>
         </div>
       </div>
 
@@ -101,13 +117,20 @@ export default function LoginPage() {
       <div className="flex items-center justify-center p-6 sm:p-12 lg:p-16">
         <div className="w-full max-w-sm space-y-6">
           {/* Mobile institution header */}
-          <div className="lg:hidden flex items-center gap-2.5 pb-2">
-            <div className="w-8 h-8 rounded-md bg-foreground text-background flex items-center justify-center font-bold text-xs">
-              UN
+          <div className="lg:hidden flex items-center gap-3 pb-3 border-b border-border/80">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-900 via-slate-900 to-blue-950 border border-blue-500/30 flex items-center justify-center p-1.5 shadow-sm">
+              <img 
+                src="https://posgradounac.edu.pe/img/logo_unac.png" 
+                alt="UNAC" 
+                className="w-full h-full object-contain drop-shadow"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
             </div>
             <div>
-              <p className="font-semibold text-sm leading-none text-foreground">UNAC Posgrado</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Consola de Operaciones</p>
+              <p className="font-bold text-sm leading-none text-foreground">Escuela de Posgrado UNAC</p>
+              <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium mt-1">Consola de Operaciones & Admisiones</p>
             </div>
           </div>
 

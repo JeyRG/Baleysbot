@@ -223,23 +223,38 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
     return `${Math.floor(hrs / 24)}d`;
   };
 
-  const COLORS = ['#10b981', '#2563eb', '#64748b'];
+  const COLORS = ['#10b981', '#1d4ed8', '#f59e0b'];
 
   return (
     <div className="p-6 md:p-8 space-y-6 overflow-y-auto max-h-screen">
-      {/* Top Header */}
+      {/* Top Header con Identidad UNAC */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
-        <div>
-          <h1 className="text-xl md:text-2xl font-semibold text-foreground tracking-tight">Consola de Control</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Telemetría operativa y atención estudiantil en tiempo real</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-900 to-slate-900 border border-blue-500/30 flex items-center justify-center p-1.5 shadow-sm shrink-0">
+            <img 
+              src="https://posgradounac.edu.pe/img/logo_unac.png" 
+              alt="UNAC" 
+              className="w-full h-full object-contain drop-shadow"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-bold text-foreground tracking-tight">Consola de Operaciones</h1>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">Admisión 2027-I</span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">Telemetría operativa de WhatsApp & Portal Web en tiempo real</p>
+          </div>
         </div>
         <button 
           onClick={() => fetchData()} 
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-card border border-border rounded-md text-xs font-medium text-foreground hover:bg-secondary hover:text-foreground transition-colors shadow-sm self-start sm:self-auto cursor-pointer disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-card border border-border rounded-lg text-xs font-semibold text-foreground hover:bg-secondary hover:text-foreground transition-all shadow-xs self-start sm:self-auto cursor-pointer disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Sincronizar</span>
+          <span>Sincronizar Datos</span>
         </button>
       </div>
 
@@ -311,31 +326,31 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
       {/* ===== KPI CARDS (Densa, Modular, High-Craft) ===== */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {[
-          { label: 'Estudiantes', value: studentCount, icon: Users, meta: 'Registrados' },
-          { label: 'Conversaciones', value: convCount, icon: MessageSquare, meta: 'Histórico' },
-          { label: 'Mensajes Hoy', value: msgToday, icon: Send, meta: 'Tráfico día' },
-          { label: 'Soporte Activo', value: supportCount, icon: AlertTriangle, meta: 'En espera', alert: supportCount > 0 },
-          { label: 'Resueltas Hoy', value: resolvedToday, icon: CheckCircle2, meta: 'Cerradas hoy' },
+          { label: 'Estudiantes', value: studentCount, icon: Users, meta: 'Registrados', accentBorder: 'border-t-2 border-t-blue-600', badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+          { label: 'Conversaciones', value: convCount, icon: MessageSquare, meta: 'Histórico', accentBorder: 'border-t-2 border-t-indigo-600', badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' },
+          { label: 'Mensajes Hoy', value: msgToday, icon: Send, meta: 'Tráfico día', accentBorder: 'border-t-2 border-t-emerald-600', badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+          { label: 'Soporte Activo', value: supportCount, icon: AlertTriangle, meta: 'En espera', alert: supportCount > 0, accentBorder: 'border-t-2 border-t-amber-500', badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+          { label: 'Resueltas Hoy', value: resolvedToday, icon: CheckCircle2, meta: 'Cerradas hoy', accentBorder: 'border-t-2 border-t-sky-500', badgeClass: 'bg-sky-500/10 text-sky-600 dark:text-sky-400' },
         ].map((kpi, idx) => {
           const Icon = kpi.icon;
           return (
             <div 
               key={idx} 
-              className={`rounded-lg border bg-card p-4 transition-colors ${
-                kpi.alert ? 'border-amber-500/40 bg-amber-500/5' : 'border-border hover:border-zinc-300 dark:hover:border-zinc-700'
+              className={`rounded-xl border bg-card p-4 transition-all duration-200 shadow-xs hover:shadow-md ${kpi.accentBorder} ${
+                kpi.alert ? 'border-amber-500/50 bg-amber-500/5 ring-1 ring-amber-500/20' : 'border-border/80 hover:border-blue-500/40'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-muted-foreground">{kpi.label}</span>
-                <span className={`p-1.5 rounded-md ${kpi.alert ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'bg-muted text-muted-foreground'}`}>
+                <span className="text-xs font-semibold text-muted-foreground">{kpi.label}</span>
+                <span className={`p-1.5 rounded-lg ${kpi.badgeClass}`}>
                   <Icon className="w-3.5 h-3.5" />
                 </span>
               </div>
               <div className="flex items-baseline justify-between mt-1">
-                <span className="text-2xl font-semibold tracking-tight text-foreground font-mono tabular-nums">
+                <span className="text-2xl font-bold tracking-tight text-foreground font-mono tabular-nums">
                   {loading ? '—' : kpi.value}
                 </span>
-                <span className="text-[10px] text-muted-foreground font-mono">{kpi.meta}</span>
+                <span className="text-[10px] text-muted-foreground font-mono font-medium">{kpi.meta}</span>
               </div>
             </div>
           );
@@ -345,16 +360,16 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
       {/* ===== CHARTS SECTION ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Gráfico 1: Mensajes por día */}
-        <div className="lg:col-span-2 rounded-lg border border-border bg-card p-5 space-y-4">
+        <div className="lg:col-span-2 rounded-xl border border-border/80 bg-card p-5 space-y-4 shadow-xs">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Volumen de Mensajes</h2>
+              <h2 className="text-sm font-bold text-foreground">Volumen de Mensajes</h2>
               <p className="text-[11px] text-muted-foreground">Distribución diaria de los últimos 7 días</p>
             </div>
-            <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-medium">
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-semibold">
               <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Usuarios</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600" /> Bot</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-500" /> Operador</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600" /> Bot IA</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Asesor Humano</span>
             </div>
           </div>
 
@@ -363,28 +378,29 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
               <AreaChart data={dailyMessages}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25}/>
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorBot" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#1d4ed8" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#1d4ed8" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#71717a' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#71717a' }} width={25} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} width={25} />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
-                    borderRadius: '6px', 
+                    borderRadius: '8px', 
                     border: '1px solid hsl(var(--border))', 
                     fontSize: '12px',
-                    color: 'hsl(var(--foreground))'
+                    color: 'hsl(var(--foreground))',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                   }}
                 />
-                <Area type="monotone" dataKey="Usuarios" stroke="#10b981" strokeWidth={1.5} fill="url(#colorUsers)" />
-                <Area type="monotone" dataKey="Bot" stroke="#2563eb" strokeWidth={1.5} fill="url(#colorBot)" />
-                <Area type="monotone" dataKey="Humano" stroke="#64748b" strokeWidth={1.5} fill="transparent" />
+                <Area type="monotone" dataKey="Usuarios" stroke="#10b981" strokeWidth={2} fill="url(#colorUsers)" />
+                <Area type="monotone" dataKey="Bot" stroke="#1d4ed8" strokeWidth={2} fill="url(#colorBot)" />
+                <Area type="monotone" dataKey="Humano" stroke="#f59e0b" strokeWidth={2} fill="transparent" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
@@ -395,9 +411,9 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
         </div>
 
         {/* Gráfico 2: Distribución por tipo */}
-        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+        <div className="rounded-xl border border-border/80 bg-card p-5 space-y-4 shadow-xs">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Distribución de Respuestas</h2>
+            <h2 className="text-sm font-bold text-foreground">Distribución de Respuestas</h2>
             <p className="text-[11px] text-muted-foreground">Proporción por remitente</p>
           </div>
 
@@ -411,7 +427,7 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
                     cy="50%"
                     innerRadius={38}
                     outerRadius={58}
-                    paddingAngle={3}
+                    paddingAngle={4}
                     dataKey="value"
                     stroke="none"
                   >
@@ -422,21 +438,21 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
                   <Tooltip 
                     contentStyle={{ 
                       backgroundColor: 'hsl(var(--card))', 
-                      borderRadius: '6px', 
+                      borderRadius: '8px', 
                       border: '1px solid hsl(var(--border))', 
                       fontSize: '12px' 
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="space-y-1.5 pt-1 border-t border-border">
+              <div className="space-y-2 pt-2 border-t border-border">
                 {senderDistribution.map((item, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="text-muted-foreground">{item.name}</span>
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-muted-foreground font-medium">{item.name}</span>
                     </div>
-                    <span className="font-mono font-medium text-foreground tabular-nums">{item.value}</span>
+                    <span className="font-mono font-bold text-foreground tabular-nums">{item.value}</span>
                   </div>
                 ))}
               </div>
@@ -452,9 +468,9 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
       {/* ===== FILA 2: Horarios Pico + Actividad Reciente ===== */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Gráfico 3: Horas Pico */}
-        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+        <div className="rounded-xl border border-border/80 bg-card p-5 space-y-4 shadow-xs">
           <div>
-            <h2 className="text-sm font-semibold text-foreground">Horas Pico de Tráfico</h2>
+            <h2 className="text-sm font-bold text-foreground">Horas Pico de Consultas</h2>
             <p className="text-[11px] text-muted-foreground">Volumen de interacción por hora (hoy)</p>
           </div>
           {hourlyActivity.some(h => h.mensajes > 0) ? (
@@ -464,19 +480,19 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
                   dataKey="hora" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fontSize: 9, fill: '#71717a' }}
+                  tick={{ fontSize: 9, fill: '#64748b' }}
                   interval={3}
                 />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#71717a' }} width={20} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} width={20} />
                 <Tooltip 
                   contentStyle={{ 
                     backgroundColor: 'hsl(var(--card))', 
-                    borderRadius: '6px', 
+                    borderRadius: '8px', 
                     border: '1px solid hsl(var(--border))', 
                     fontSize: '12px' 
                   }}
                 />
-                <Bar dataKey="mensajes" fill="#2563eb" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="mensajes" fill="#1d4ed8" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -487,13 +503,13 @@ export default function DashboardOverview({ onSelectConversation }: DashboardOve
         </div>
 
         {/* Actividad Reciente */}
-        <div className="rounded-lg border border-border bg-card flex flex-col overflow-hidden">
+        <div className="rounded-xl border border-border/80 bg-card flex flex-col overflow-hidden shadow-xs">
           <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <Activity className="w-3.5 h-3.5 text-primary" />
+            <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <span>Actividad Reciente</span>
             </h2>
-            <span className="text-[10px] font-mono text-muted-foreground">Últimos eventos</span>
+            <span className="text-[10px] font-mono font-medium text-muted-foreground">Últimos eventos</span>
           </div>
 
           <div className="divide-y divide-border/60 max-h-[220px] overflow-y-auto">

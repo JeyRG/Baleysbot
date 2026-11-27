@@ -4,75 +4,79 @@
 
 @layer base {
   :root {
-    /* LIGHT MODE - Minimal, Crafted Slate/Zinc (shadcn style) */
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    /* LIGHT MODE - Identidad Oficial UNAC Posgrado (posgradounac.edu.pe) */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
     
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card-foreground: 222 47% 11%;
     
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover-foreground: 222 47% 11%;
     
-    --primary: 240 5.9% 10%;
-    --primary-foreground: 0 0% 98%;
+    /* Azul Royal UNAC #1d4ed8 */
+    --primary: 221 83% 48%;
+    --primary-foreground: 0 0% 100%;
     
-    --secondary: 240 4.8% 95.9%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 214 32% 93%;
+    --secondary-foreground: 222 47% 11%;
     
-    --muted: 240 4.8% 95.9%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted: 214 32% 93%;
+    --muted-foreground: 215 16% 47%;
     
-    --accent: 240 4.8% 95.9%;
-    --accent-foreground: 240 5.9% 10%;
+    /* Oro Académico UNAC #f59e0b */
+    --accent: 38 92% 50%;
+    --accent-foreground: 222 47% 11%;
     
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 240 5.9% 10%;
+    --border: 214 32% 90%;
+    --input: 214 32% 90%;
+    --ring: 221 83% 48%;
     
-    --radius: 0.5rem;
+    --radius: 0.65rem;
     
-    --sidebar-bg: 0 0% 98%;
-    --sidebar-text: 240 10% 3.9%;
-    --sidebar-border: 240 5.9% 90%;
+    --sidebar-bg: 210 40% 98%;
+    --sidebar-text: 222 47% 11%;
+    --sidebar-border: 214 32% 90%;
   }
 
   .dark {
-    /* DARK MODE - Deep Charcoal/Zinc (Anti-AI, pure craft) */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    /* DARK MODE - Azul Noche Profundo Institucional (#060b18 / #0c1427) */
+    --background: 224 71% 5%;
+    --foreground: 210 40% 98%;
     
-    --card: 240 10% 4.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
     
-    --popover: 240 10% 4.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
     
-    --primary: 0 0% 98%;
-    --primary-foreground: 240 5.9% 10%;
+    /* Azul Real Brillante UNAC #3b82f6 */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
     
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 217 33% 15%;
+    --secondary-foreground: 210 40% 98%;
     
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 217 33% 13%;
+    --muted-foreground: 215 20% 65%;
     
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    /* Oro Académico Brillante UNAC #fbca38 */
+    --accent: 43 96% 56%;
+    --accent-foreground: 222 47% 11%;
     
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 45%;
     --destructive-foreground: 0 0% 98%;
     
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 240 4.9% 83.9%;
+    --border: 217 33% 16%;
+    --input: 217 33% 16%;
+    --ring: 217 91% 60%;
 
-    --sidebar-bg: 240 10% 3.2%;
-    --sidebar-text: 0 0% 98%;
-    --sidebar-border: 240 3.7% 12%;
+    --sidebar-bg: 224 71% 4%;
+    --sidebar-text: 210 40% 98%;
+    --sidebar-border: 217 33% 14%;
   }
 }
 
