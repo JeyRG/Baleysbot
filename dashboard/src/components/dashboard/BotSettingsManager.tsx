@@ -15,7 +15,7 @@ const DEFAULT_MENSAJE_API = {
     requisitos_texto: '📝 *REQUISITOS DE INSCRIPCIÓN:*\n1️⃣ Ficha de Postulante y Hoja de Vida llenadas virtualmente en nuestro sistema.\n2️⃣ Copia legible del DNI o Pasaporte.\n3️⃣ Foto actual a color (opcional).\n4️⃣ {documento_grado}\n\n*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.',
     aviso_brochure: '📄 Te adjunto el brochure oficial del programa:',
     aviso_sin_brochure: '📍 Si deseas el brochure de este programa, escríbeme el nombre exacto o solicita un asesor.',
-    pasos_inscripcion: '👉 *PASOS PARA FORMALIZAR TU INSCRIPCIÓN:*\n1️⃣ Realiza el pago en {banco} (Cta: {cuenta} / CCI: {cci}).\n2️⃣ Registra tus datos en el portal: {portal_inscripcion}\n3️⃣ Sube tu expediente digital en la plataforma GED: {portal_ged}\n\n¡Muchos éxitos en tu postulación!'
+    pasos_inscripcion: '📌 *¡Paso a paso para completar tu proceso de admisión!* 🎓✨\n\n*1️⃣ Realiza tu inscripción*\nIngresa al siguiente enlace y completa tu registro con tus datos:\n👉 {portal_inscripcion}\n\núnete a nuestro grupo general de Whatsapp para este proceso de admisión luego de realizar la inscripción:\n👉 {whatsapp_admision_general}\n\n*2️⃣ Realiza el pago por derecho de admisión* 💳\n\nEl monto dependerá del programa al que postulas:\n🎓 *Maestría:* {inscripcion_maestria}\n📘 *Segunda Especialidad:* {inscripcion_especialidad}\n🎖️ *Doctorado:* {inscripcion_doctorado}\n\n💥 *Datos de la cuenta bancaria:*\n🏦 *Banco:* {banco}\n*Cuenta:* {cuenta}\n*CCI:* {cci}\n\n⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.\n\n*3️⃣ Revisa los requisitos de admisión* 📄\n\nVerifica la documentación que debes presentar según el programa al que postulas:\n👉 {portal_requisitos}\n\n*4️⃣ Sube tu expediente digital (GED)* 💻\n\nCuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:\n👉 {portal_ged_login}\n\nSolo necesitarás tu *DNI*, siempre que ya hayas realizado tu inscripción.\n\n*5️⃣ Verifica el estado de tu carpeta* ✅\n\nFinalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir.\n\n📩 Si tienes alguna consulta durante el proceso, no dudes en escribirme. ¡Con gusto te ayudaré! 😊🤝'
 };
 
 export default function BotSettingsManager({ onNavigateToTraining }: BotSettingsManagerProps) {
@@ -855,6 +855,12 @@ export default function BotSettingsManager({ onNavigateToTraining }: BotSettings
                                         .replace('{cuenta}', settings.pagos.cuenta_general)
                                         .replace('{cci}', settings.pagos.cci_general)
                                         .replace('{portal_inscripcion}', settings.enlaces.portal_inscripcion)
+                                        .replace('{whatsapp_admision_general}', settings.enlaces.whatsapp_admision_general)
+                                        .replace('{inscripcion_maestria}', settings.pagos.inscripcion_maestria)
+                                        .replace('{inscripcion_especialidad}', settings.pagos.inscripcion_especialidad)
+                                        .replace('{inscripcion_doctorado}', settings.pagos.inscripcion_doctorado)
+                                        .replace('{portal_requisitos}', settings.enlaces.portal_requisitos)
+                                        .replace('{portal_ged_login}', settings.enlaces.portal_ged_login)
                                         .replace('{portal_ged}', settings.enlaces.portal_ged)}
                                 </div>
                             </div>

@@ -41,7 +41,7 @@ export const DEFAULT_BOT_SETTINGS = {
         limite_leads_diario: 50
     },
     enlaces: {
-        whatsapp_admision_general: 'https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=cl&p=a&mlu=4&mlr=4',
+        whatsapp_admision_general: 'https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=sw&p=i&iam=2',
         portal_inscripcion: 'https://posgradounac.edu.pe/INSCRIPCION/',
         portal_ged: 'https://posgradounac.edu.pe/GED/',
         portal_ged_login: 'https://posgradounac.edu.pe/GED/login.php',
@@ -54,7 +54,7 @@ export const DEFAULT_BOT_SETTINGS = {
         requisitos_texto: '📝 *REQUISITOS DE INSCRIPCIÓN:*\n1️⃣ Ficha de Postulante y Hoja de Vida llenadas virtualmente en nuestro sistema.\n2️⃣ Copia legible del DNI o Pasaporte.\n3️⃣ Foto actual a color (opcional).\n4️⃣ {documento_grado}\n\n*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.',
         aviso_brochure: '📄 Te adjunto el brochure oficial del programa:',
         aviso_sin_brochure: '📍 Si deseas el brochure de este programa, escríbeme el nombre exacto o solicita un asesor.',
-        pasos_inscripcion: '👉 *PASOS PARA FORMALIZAR TU INSCRIPCIÓN:*\n1️⃣ Realiza el pago en {banco} (Cta: {cuenta} / CCI: {cci}).\n2️⃣ Registra tus datos en el portal: {portal_inscripcion}\n3️⃣ Sube tu expediente digital en la plataforma GED: {portal_ged}\n\n¡Muchos éxitos en tu postulación!'
+        pasos_inscripcion: '📌 *¡Paso a paso para completar tu proceso de admisión!* 🎓✨\n\n*1️⃣ Realiza tu inscripción*\nIngresa al siguiente enlace y completa tu registro con tus datos:\n👉 {portal_inscripcion}\n\núnete a nuestro grupo general de Whatsapp para este proceso de admisión luego de realizar la inscripción:\n👉 {whatsapp_admision_general}\n\n*2️⃣ Realiza el pago por derecho de admisión* 💳\n\nEl monto dependerá del programa al que postulas:\n🎓 *Maestría:* {inscripcion_maestria}\n📘 *Segunda Especialidad:* {inscripcion_especialidad}\n🎖️ *Doctorado:* {inscripcion_doctorado}\n\n💥 *Datos de la cuenta bancaria:*\n🏦 *Banco:* {banco}\n*Cuenta:* {cuenta}\n*CCI:* {cci}\n\n⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.\n\n*3️⃣ Revisa los requisitos de admisión* 📄\n\nVerifica la documentación que debes presentar según el programa al que postulas:\n👉 {portal_requisitos}\n\n*4️⃣ Sube tu expediente digital (GED)* 💻\n\nCuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:\n👉 {portal_ged_login}\n\nSolo necesitarás tu *DNI*, siempre que ya hayas realizado tu inscripción.\n\n*5️⃣ Verifica el estado de tu carpeta* ✅\n\nFinalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir.\n\n📩 Si tienes alguna consulta durante el proceso, no dudes en escribirme. ¡Con gusto te ayudaré! 😊🤝'
     }
 };
 
@@ -241,34 +241,44 @@ export function buildAdmissionStepsMessage(tipoProgramaGetter = null) {
     const costoD = infoD?.costos || s.pagos.inscripcion_doctorado;
     const costoE = infoE?.costos || s.pagos.inscripcion_especialidad;
 
-    return `📌 *¡Paso a paso para completar tu proceso de admisión ${s.admision.proceso_actual}!* 🎓✨
+    return `📌 *¡Paso a paso para completar tu proceso de admisión!* 🎓✨
 
 *1️⃣ Realiza tu inscripción*
-Ingresa al enlace oficial y completa tu registro con tus datos:
+Ingresa al siguiente enlace y completa tu registro con tus datos:
 👉 ${s.enlaces.portal_inscripcion}
 
-*2️⃣ Realiza el pago por derecho de admisión* 💳
-• 🎓 *Maestría:* ${costoM}
-• 📘 *Segunda Especialidad:* ${costoE}
-• 🎖️ *Doctorado:* ${costoD}
-
-🏦 *Banco:* ${s.pagos.banco}
-• *Cuenta (Maestría/Doctorado):* ${s.pagos.cuenta_general} | *CCI:* ${s.pagos.cci_general}
-• *Cuenta (Segunda Especialidad):* ${s.pagos.cuenta_especialidad} | *CCI:* ${s.pagos.cci_especialidad}
-
-🔗 *Grupo oficial de WhatsApp (${s.admision.proceso_actual}):*
+únete a nuestro grupo general de Whatsapp para este proceso de admisión luego de realizar la inscripción:
 👉 ${s.enlaces.whatsapp_admision_general}
+
+*2️⃣ Realiza el pago por derecho de admisión* 💳
+
+El monto dependerá del programa al que postulas:
+🎓 *Maestría:* ${costoM}
+📘 *Segunda Especialidad:* ${costoE}
+🎖️ *Doctorado:* ${costoD}
+
+💥 *Datos de la cuenta bancaria:*
+🏦 *Banco:* ${s.pagos.banco}
+*Cuenta:* ${s.pagos.cuenta_general}
+*CCI:* ${s.pagos.cci_general}
 
 ⚠️ Guarda tu voucher de pago, ya que lo necesitarás para el siguiente paso.
 
 *3️⃣ Revisa los requisitos de admisión* 📄
-Verifica la documentación según el programa al que postulas:
+
+Verifica la documentación que debes presentar según el programa al que postulas:
 👉 ${s.enlaces.portal_requisitos}
 
 *4️⃣ Sube tu expediente digital (GED)* 💻
-Cuando tengas tus documentos listos, cárgalos en la plataforma GED con tu DNI:
+
+Cuando tengas todos tus documentos listos, ingresa a la plataforma GED para cargar tu carpeta digital:
 👉 ${s.enlaces.portal_ged_login}
 
+Solo necesitarás tu *DNI*, siempre que ya hayas realizado tu inscripción.
+
 *5️⃣ Verifica el estado de tu carpeta* ✅
-Revisa periódicamente la plataforma GED (${s.modalidad_atencion.horario_ged}) o escríbeme tu *DNI* para consultar el estado de tu expediente. Para atención adicional: ${s.modalidad_atencion.telefono_soporte}.`;
+
+Finalmente, ingresa periódicamente a la plataforma GED para revisar el estado de tu expediente y verificar si tu documentación ha sido validada o si existe alguna observación por corregir.
+
+📩 Si tienes alguna consulta durante el proceso, no dudes en escribirme. ¡Con gusto te ayudaré! 😊🤝`;
 }

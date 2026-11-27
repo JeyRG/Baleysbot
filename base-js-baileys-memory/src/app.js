@@ -555,8 +555,14 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         inicio_clases: s.admision?.inicio_clases || '',
         modalidad_titulo: s.modalidad_atencion?.modalidad_titulo || '',
         modalidad_resumen: s.modalidad_atencion?.modalidad_resumen || '',
-        portal_inscripcion: s.enlaces?.portal_inscripcion || '',
-        portal_ged: s.enlaces?.portal_ged || '',
+        whatsapp_admision_general: groupLink || s.enlaces?.whatsapp_admision_general || 'https://chat.whatsapp.com/L3SLkM8yYgw2iCfcAOEzYI?s=sw&p=i&iam=2',
+        portal_inscripcion: s.enlaces?.portal_inscripcion || 'https://posgradounac.edu.pe/INSCRIPCION/',
+        portal_requisitos: s.enlaces?.portal_requisitos || 'https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php',
+        portal_ged: s.enlaces?.portal_ged || 'https://posgradounac.edu.pe/GED/',
+        portal_ged_login: s.enlaces?.portal_ged_login || 'https://posgradounac.edu.pe/GED/login.php',
+        inscripcion_maestria: s.pagos?.inscripcion_maestria || 'S/ 200',
+        inscripcion_especialidad: s.pagos?.inscripcion_especialidad || 'S/ 120',
+        inscripcion_doctorado: s.pagos?.inscripcion_doctorado || 'S/ 250',
         documento_grado: reqDoc
     };
 
