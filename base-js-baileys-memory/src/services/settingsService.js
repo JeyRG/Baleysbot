@@ -47,6 +47,14 @@ export const DEFAULT_BOT_SETTINGS = {
         portal_ged_login: 'https://posgradounac.edu.pe/GED/login.php',
         portal_requisitos: 'https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php',
         portal_sga: 'https://sga.unac.edu.pe'
+    },
+    mensaje_api: {
+        saludo_bienvenida: '🎓 ¡Hola {nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *{programa}*.',
+        titulo_detalles: '💥 *Detalles de Inscripción ({proceso_actual}):*',
+        requisitos_texto: '📝 *REQUISITOS DE INSCRIPCIÓN:*\n1️⃣ Ficha de Postulante y Hoja de Vida llenadas virtualmente en nuestro sistema.\n2️⃣ Copia legible del DNI o Pasaporte.\n3️⃣ Foto actual a color (opcional).\n4️⃣ {documento_grado}\n\n*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.',
+        aviso_brochure: '📄 Te adjunto el brochure oficial del programa:',
+        aviso_sin_brochure: '📍 Si deseas el brochure de este programa, escríbeme el nombre exacto o solicita un asesor.',
+        pasos_inscripcion: '👉 *PASOS PARA FORMALIZAR TU INSCRIPCIÓN:*\n1️⃣ Realiza el pago en {banco} (Cta: {cuenta} / CCI: {cci}).\n2️⃣ Registra tus datos en el portal: {portal_inscripcion}\n3️⃣ Sube tu expediente digital en la plataforma GED: {portal_ged}\n\n¡Muchos éxitos en tu postulación!'
     }
 };
 
@@ -57,7 +65,7 @@ let lastMeta = {
     source: 'defaults'
 };
 
-function sanitizeString(val, fallback = '', maxLen = 500) {
+function sanitizeString(val, fallback = '', maxLen = 2000) {
     if (typeof val !== 'string') return fallback;
     const trimmed = val.trim();
     return trimmed.length > 0 ? trimmed.slice(0, maxLen) : fallback;
@@ -78,7 +86,7 @@ export function mergeWithDefaults(partial = {}) {
                     ? Math.floor(parsed)
                     : defaultVal;
             } else {
-                merged[section][field] = sanitizeString(srcSection[field], defaultVal, 600);
+                merged[section][field] = sanitizeString(srcSection[field], defaultVal, 2000);
             }
         }
     }

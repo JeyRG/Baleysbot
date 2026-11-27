@@ -2,10 +2,10 @@
   "value": {
     "admision": {
       "proceso_actual": "2027-I",
-      "cierre_inscripciones": "Hasta el 10 de Agosto del 2026",
-      "fecha_examen": "19 y 20 de Agosto del 2026",
-      "fecha_entrevistas": "19 y 20 de Agosto del 2026",
-      "inicio_clases": "1 de Setiembre del 2026",
+      "cierre_inscripciones": "Hasta el 19 de Marzo del 2027",
+      "fecha_examen": "20 al 22 de Marzo del 2027",
+      "fecha_entrevistas": "20 al 22 de Marzo del 2027",
+      "inicio_clases": "3 de Abril del 2027",
       "nota_evaluacion": "El proceso de admisión consta de dos etapas: Evaluación de Expediente (CV en plataforma GED) y Entrevista Personal virtual (no es examen escrito descalificatorio)."
     },
     "pagos": {
@@ -31,7 +31,7 @@
       "modalidad_titulo": "Presencial con Herramientas Tecnológicas",
       "modalidad_resumen": "80% virtual / 20% presencial — Asistencia 1 vez al mes (clase híbrida). El grado académico se otorga con modalidad PRESENCIAL (cumple normativa SUNEDU).",
       "horario_ged": "Lunes a Viernes de 08:00 a 16:00 horas",
-      "telefono_soporte": "900969591",
+      "telefono_soporte": "917145705",
       "limite_leads_diario": 50
     },
     "enlaces": {
@@ -41,9 +41,17 @@
       "portal_ged_login": "https://posgradounac.edu.pe/GED/login.php",
       "portal_requisitos": "https://posgradounac.edu.pe/Admision/requisitos/requisitos_admision.php",
       "portal_sga": "https://sga.unac.edu.pe"
+    },
+    "mensaje_api": {
+      "saludo_bienvenida": "🎓 ¡Hola {nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *{programa}*.",
+      "titulo_detalles": "💥 *Detalles de Inscripción ({proceso_actual}):*",
+      "requisitos_texto": "📝 *REQUISITOS DE INSCRIPCIÓN:*\n1️⃣ Ficha de Postulante y Hoja de Vida llenadas virtualmente en nuestro sistema.\n2️⃣ Copia legible del DNI o Pasaporte.\n3️⃣ Foto actual a color (opcional).\n4️⃣ {documento_grado}\n\n*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.",
+      "aviso_brochure": "📄 Te adjunto el brochure oficial del programa:",
+      "aviso_sin_brochure": "📍 Si deseas el brochure de este programa, escríbeme el nombre exacto o solicita un asesor.",
+      "pasos_inscripcion": "👉 *PASOS PARA FORMALIZAR TU INSCRIPCIÓN:*\n1️⃣ Realiza el pago en {banco} (Cta: {cuenta} / CCI: {cci}).\n2️⃣ Registra tus datos en el portal: {portal_inscripcion}\n3️⃣ Sube tu expediente digital en la plataforma GED: {portal_ged}\n\n¡Muchos éxitos en tu postulación!"
     }
   },
-  "updated_at": "2026-11-26T02:59:18.454+00:00",
+  "updated_at": "2026-11-27T02:20:05.385+00:00",
   "updated_by_name": "Admin",
   "source": "supabase"
 }

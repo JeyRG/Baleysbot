@@ -66,6 +66,14 @@ export interface BotSettings {
         portal_requisitos: string;
         portal_sga: string;
     };
+    mensaje_api: {
+        saludo_bienvenida: string;
+        titulo_detalles: string;
+        requisitos_texto: string;
+        aviso_brochure: string;
+        aviso_sin_brochure: string;
+        pasos_inscripcion: string;
+    };
 }
 
 export interface BotSettingsResponse {

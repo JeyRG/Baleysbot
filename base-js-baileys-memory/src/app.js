@@ -529,8 +529,41 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         reqDoc = 'Copia del Título Profesional universitario.';
     }
 
-    // 1. Bienvenida
-    const saludo = `🎓 ¡Hola ${nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *${targetProgram ? targetProgram.nombre : progStr}*.`;
+    // Helper de sustitución dinámica de etiquetas {variable}
+    const renderTemplate = (templateStr, varsObj) => {
+        let res = String(templateStr || '');
+        for (const [key, val] of Object.entries(varsObj)) {
+            res = res.replaceAll(`{${key}}`, String(val ?? ''));
+        }
+        return res;
+    };
+
+    const templateVars = {
+        nombre: nombre || 'Postulante',
+        programa: targetProgram ? targetProgram.nombre : progStr,
+        proceso_actual: s.admision?.proceso_actual || '',
+        banco: s.pagos?.banco || 'Scotiabank',
+        cuenta,
+        cci,
+        precio,
+        duracion,
+        matricula,
+        costo,
+        cierre_inscripciones: s.admision?.cierre_inscripciones || '',
+        fecha_examen: s.admision?.fecha_examen || '',
+        fecha_entrevistas: s.admision?.fecha_entrevistas || '',
+        inicio_clases: s.admision?.inicio_clases || '',
+        modalidad_titulo: s.modalidad_atencion?.modalidad_titulo || '',
+        modalidad_resumen: s.modalidad_atencion?.modalidad_resumen || '',
+        portal_inscripcion: s.enlaces?.portal_inscripcion || '',
+        portal_ged: s.enlaces?.portal_ged || '',
+        documento_grado: reqDoc
+    };
+
+    // 1. Bienvenida (Configurable en punto 5 de parámetros)
+    const rawSaludo = s.mensaje_api?.saludo_bienvenida ||
+        '🎓 ¡Hola {nombre}! Felicidades.\n*Somos de la Escuela de Posgrado de la UNAC*\n🚀 Ya te encuentras registrado para nuestro programa de *{programa}*.';
+    const saludo = renderTemplate(rawSaludo, templateVars);
     await provider.sendMessage(numero, saludo, {});
     await delay(2500);
 
@@ -549,7 +582,10 @@ async function procesarEnvioMensaje(target, nombre, facultad, programa, provider
         }
     }
 
-    const infoText = `💥 *Detalles de Inscripción (${s.admision.proceso_actual}):*
+    const rawTituloDetalles = s.mensaje_api?.titulo_detalles || '💥 *Detalles de Inscripción ({proceso_actual}):*';
+    const tituloDetalles = renderTemplate(rawTituloDetalles, templateVars);
+
+    const infoText = `${tituloDetalles}
 📌 Inscripción: ${precio}
 🏦 Banco: ${s.pagos.banco} (Cta: ${cuenta} / CCI: ${cci})
 ⏳ Duración: ${duracion}
@@ -577,20 +613,18 @@ ${groupLink}`;
         await delay(2500);
     }
 
-    const requirementsText = `📝 *REQUISITOS DE INSCRIPCIÓN:*
-1️⃣ Ficha de Postulante y Hoja de Vida llenadas virtualmente en nuestro sistema.
-2️⃣ Copia legible del DNI o Pasaporte.
-3️⃣ Foto actual a color (opcional).
-4️⃣ ${reqDoc}
-
-*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.`;
+    // 3. Requisitos (Configurable en punto 5 de parámetros)
+    const rawRequisitos = s.mensaje_api?.requisitos_texto ||
+        '📝 *REQUISITOS DE INSCRIPCIÓN:*\n1️⃣ Ficha de Postulante y Hoja de Vida llenadas virtualmente en nuestro sistema.\n2️⃣ Copia legible del DNI o Pasaporte.\n3️⃣ Foto actual a color (opcional).\n4️⃣ {documento_grado}\n\n*Nota:* Los grados del extranjero deben estar registrados en SUNEDU.';
+    const requirementsText = renderTemplate(rawRequisitos, templateVars);
 
     await provider.sendMessage(numero, requirementsText, {});
     await delay(2500);
 
-    // 3. Brochure
+    // 4. Brochure
     if (targetProgram?.brochure) {
-        await provider.sendMessage(numero, `📄 Te adjunto el brochure oficial del programa:`, {});
+        const rawAvisoBrochure = s.mensaje_api?.aviso_brochure || '📄 Te adjunto el brochure oficial del programa:';
+        await provider.sendMessage(numero, renderTemplate(rawAvisoBrochure, templateVars), {});
         await delay(1200);
         await sendMediaWithScopedUnacFallback(
             (caption, mediaSrc) => provider.sendMessage(numero, caption, {
@@ -601,12 +635,17 @@ ${groupLink}`;
             targetProgram.brochure
         );
     } else {
-        await provider.sendMessage(numero, `📍 Si deseas el brochure de este programa, escríbeme el nombre exacto o solicita un asesor.`, {});
+        const rawSinBrochure = s.mensaje_api?.aviso_sin_brochure || '📍 Si deseas el brochure de este programa, escríbeme el nombre exacto o solicita un asesor.';
+        await provider.sendMessage(numero, renderTemplate(rawSinBrochure, templateVars), {});
     }
     await delay(2000);
 
-    // 4. Siguientes pasos dinámicos
-    await provider.sendMessage(numero, buildAdmissionStepsMessage(getTipoProgramaInfo), {});
+    // 5. Siguientes pasos de inscripción / Cierre (Configurable en punto 5 de parámetros)
+    if (s.mensaje_api?.pasos_inscripcion) {
+        await provider.sendMessage(numero, renderTemplate(s.mensaje_api.pasos_inscripcion, templateVars), {});
+    } else {
+        await provider.sendMessage(numero, buildAdmissionStepsMessage(getTipoProgramaInfo), {});
+    }
 }
 
 
